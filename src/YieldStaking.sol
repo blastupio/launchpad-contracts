@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/interfaces/AggregatorV3Interface.sol";
+import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {IERC20Rebasing, YieldMode} from "./interfaces/IERC20Rebasing.sol";
 import {IBlast} from "./interfaces/IBlast.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
@@ -28,7 +28,7 @@ contract Staking is Ownable {
     IERC20Rebasing public immutable WETH;
     uint8 public immutable decimalsUSDB;
 
-    AggregatorV3Interface public oracle;
+    IChainlinkOracle public oracle;
     uint8 public oracleDecimals;
 
     uint256 public minUSDBStakeValue; // in USDB
@@ -62,7 +62,7 @@ contract Staking is Ownable {
         USDB = IERC20Rebasing(usdb);
         WETH = IERC20Rebasing(weth);
 
-        oracle = AggregatorV3Interface(_oracle);
+        oracle = IChainlinkOracle(_oracle);
         oracleDecimals = oracle.decimals();
         decimalsUSDB = IERC20Metadata(address(USDB)).decimals();
 

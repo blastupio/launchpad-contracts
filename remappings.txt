@@ -1,4 +1,1 @@
-@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/
-@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
-@chainlink/contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/src/v0.8/
-@openzeppelin/contracts-v4.9.6/=lib/openzeppelin-contracts/contracts/
+@openzeppelin/=lib/openzeppelin/

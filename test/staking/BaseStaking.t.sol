@@ -7,11 +7,11 @@ import {Staking} from "../../src/YieldStaking.sol";
 import {Launchpad} from "../../src/Launchpad.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {MockERC20} from "forge-std/mocks/MockERC20.sol";
+import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {TokenERC20} from "../../src/mocks/TokenERC20Mock.sol";
-import {AggregatorV3Mock} from "../../src/mocks/AggregatorV3Mock.sol";
+import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
+import {OracleMock} from "../../src/mocks/OracleMock.sol";
 import {WETHRebasingMock} from "../../src/mocks/WETHRebasingMock.sol";
 import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
 
@@ -21,10 +21,10 @@ contract BaseStakingTest is Test {
     Staking staking;
     Launchpad launchpad;
 
-    TokenERC20 blp;
-    TokenERC20 testToken;
+    ERC20Mock blp;
+    ERC20Mock testToken;
 
-    AggregatorV3Mock oracle;
+    OracleMock oracle;
 
     address internal admin;
     uint256 internal adminPrivateKey;
@@ -50,9 +50,9 @@ contract BaseStakingTest is Test {
         bytes memory code2 = address(weth).code;
         vm.etch(0x4300000000000000000000000000000000000004, code2);
 
-        blp = new TokenERC20("BlastUp", "BLP", 18);
-        testToken = new TokenERC20("Token", "TKN", 18);
-        oracle = new AggregatorV3Mock();
+        blp = new ERC20Mock("BlastUp", "BLP", 18);
+        testToken = new ERC20Mock("Token", "TKN", 18);
+        oracle = new OracleMock();
 
         uint256 nonce = vm.getNonce(admin);
         address launchpadAddress = vm.computeCreateAddress(admin, nonce);
