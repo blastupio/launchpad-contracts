@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseStakingTest, Staking, WadRayMath} from "../../BaseStaking.t.sol";
+import {BaseStakingTest, Staking, WadMath} from "../../BaseStaking.t.sol";
 
 contract StakeTest is BaseStakingTest {
-    using WadRayMath for uint256;
+    using WadMath for uint256;
     // error InvalidTokenForStaking(address token);
 
     function test_RevertStake_InactivePool() public {

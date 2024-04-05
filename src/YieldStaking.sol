@@ -10,11 +10,11 @@ import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {IERC20Rebasing, YieldMode} from "./interfaces/IERC20Rebasing.sol";
 import {IBlast} from "./interfaces/IBlast.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
-import {WadRayMath} from "./libraries/math.sol";
+import {WadMath} from "./libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract Staking is Ownable {
-    using WadRayMath for uint256;
+    using WadMath for uint256;
     using SafeERC20 for IERC20Rebasing;
 
     error InvalidPool(address token);
@@ -69,8 +69,8 @@ contract Staking is Ownable {
         USDB.configure(YieldMode.CLAIMABLE);
         WETH.configure(YieldMode.CLAIMABLE);
         // initialize pools
-        stakingInfos[address(USDB)].lastIndex = WadRayMath.WAD;
-        stakingInfos[address(WETH)].lastIndex = WadRayMath.WAD;
+        stakingInfos[address(USDB)].lastIndex = WadMath.WAD;
+        stakingInfos[address(WETH)].lastIndex = WadMath.WAD;
     }
 
     /* ========== VIEWS ========== */

@@ -15,7 +15,7 @@ import {OracleMock} from "../../src/mocks/OracleMock.sol";
 import {WETHRebasingMock} from "../../src/mocks/WETHRebasingMock.sol";
 import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
 
-import {WadRayMath} from "../../src/libraries/math.sol";
+import {WadMath} from "../../src/libraries/WadMath.sol";
 
 contract BaseStakingTest is Test {
     Staking staking;
