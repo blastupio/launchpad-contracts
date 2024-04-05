@@ -84,14 +84,15 @@ contract Launchpad is Ownable, ILaunchpad {
     function userAllowedAllocation(address token, address user) public view returns (uint256) {
         if (placedTokens[token].users[user].registered) {
             if (placedTokens[token].status == SaleStatus.PUBLIC_SALE) {
+                UserTiers tier = placedTokens[token].users[user].tier;
+                uint256 weight = weightForTier[tier];
+                uint256 boughtAmount = placedTokens[token].users[user].boughtAmount;
                 if (placedTokens[token].users[user].tier < UserTiers.TITANIUM) {
-                    return weightForTier[placedTokens[token].users[user].tier]
-                        * placedTokens[token].initialVolumeForLowTiers / placedTokens[token].lowTiersWeightsSum
-                        - placedTokens[token].users[user].boughtAmount;
+                    return weight * placedTokens[token].initialVolumeForLowTiers
+                        / placedTokens[token].lowTiersWeightsSum - boughtAmount;
                 } else {
-                    return weightForTier[placedTokens[token].users[user].tier]
-                        * placedTokens[token].initialVolumeForHighTiers / placedTokens[token].highTiersWeightsSum
-                        - placedTokens[token].users[user].boughtAmount;
+                    return weight * placedTokens[token].initialVolumeForHighTiers
+                        / placedTokens[token].highTiersWeightsSum - boughtAmount;
                 }
             } else if (placedTokens[token].users[user].tier >= UserTiers.TITANIUM) {
                 return placedTokens[token].volumeForHighTiers;
