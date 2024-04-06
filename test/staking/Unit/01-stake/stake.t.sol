@@ -5,7 +5,6 @@ import {BaseStakingTest, Staking, WadMath} from "../../BaseStaking.t.sol";
 
 contract StakeTest is BaseStakingTest {
     using WadMath for uint256;
-    // error InvalidTokenForStaking(address token);
 
     function test_RevertStake_InactivePool() public {
         vm.startPrank(user);
@@ -31,19 +30,14 @@ contract StakeTest is BaseStakingTest {
 
         staking.stake(address(USDB), amount);
 
-        // assertEq(staking.getActualLastIndex(address(USDB)), 1.1e18);
-        // assertEq(staking.getActualtotalSupply(address(USDB)), amount);
-        // assertEq(staking.getActualBalanceOfWithRewards(address(USDB), user), amount);
-        // assertEq(staking.rewardOf(address(USDB), user), 0);
-
         vm.stopPrank();
     }
 
-    function test_StakeUSDB_fuzz(uint128 amount, uint128 amount2) public {
-        vm.assume(amount > 1000 && amount2 > 1000);
+    function test_StakeUSDB_fuzz(uint128 _amount, uint128 _amount2) public {
+        vm.assume(_amount > 1000 && _amount2 > 1000);
 
-        uint256 amount = uint256(amount);
-        uint256 amount2 = uint256(amount);
+        uint256 amount = uint256(_amount);
+        uint256 amount2 = uint256(_amount2);
 
         vm.startPrank(user);
 
@@ -93,11 +87,6 @@ contract StakeTest is BaseStakingTest {
 
         staking.stake(address(WETH), amount);
 
-        // assertEq(staking.getLastIndex(address(WETH)), 1e18);
-        // assertEq(staking.totalSupply(address(WETH)), amount);
-        // assertEq(staking.balanceOfWithRewards(address(WETH), user), amount);
-        // assertEq(staking.rewardOf(address(WETH), user), 0);
-
         vm.stopPrank();
     }
 
@@ -108,11 +97,6 @@ contract StakeTest is BaseStakingTest {
         vm.deal(user, 10e18);
 
         staking.stake{value: amount}(address(0), 0);
-
-        // assertEq(staking.getLastIndex(address(WETH)), 1e18);
-        // assertEq(staking.totalSupply(address(WETH)), amount);
-        // assertEq(staking.balanceOfWithRewards(address(WETH), user), amount);
-        // assertEq(staking.rewardOf(address(WETH), user), 0);
 
         vm.stopPrank();
     }

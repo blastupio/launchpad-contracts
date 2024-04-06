@@ -47,7 +47,6 @@ interface ILaunchpad {
         uint256 vestingDuration;
         uint256 tgeTimestamp;
         uint8 tgePercent;
-        mapping(address => User) users;
     }
 
     struct PlaceTokensInput {

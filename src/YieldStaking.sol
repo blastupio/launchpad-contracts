@@ -75,11 +75,11 @@ contract Staking is Ownable {
 
     /* ========== VIEWS ========== */
 
-    // function that operates with the lastIndex which will be updated
-
     function userInfo(address targetToken, address user) external view returns (User memory) {
         return stakingInfos[targetToken].users[user];
     }
+
+    // function that operates with the lastIndex which will be updated
 
     function lastIndex(address targetToken) public view returns (uint256) {
         return (
@@ -252,7 +252,6 @@ contract Staking is Ownable {
             _unwrapETH(amount);
             (bool sent,) = payable(msg.sender).call{value: amount}("");
             require(sent, "BlastUP: Failed to send Ether");
-            // just send yield
         } else if (targetToken == address(WETH) || targetToken == address(USDB)) {
             IERC20Rebasing(targetToken).safeTransfer(msg.sender, amount);
         } else {

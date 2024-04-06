@@ -17,7 +17,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         return signature;
     }
 
-    function getTierByAmount(uint256 _amount) internal returns (ILaunchpad.UserTiers) {
+    function getTierByAmount(uint256 _amount) internal view returns (ILaunchpad.UserTiers) {
         if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.DIAMOND)) return ILaunchpad.UserTiers.DIAMOND;
         if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.PLATINUM)) return ILaunchpad.UserTiers.PLATINUM;
         if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.TITANIUM)) return ILaunchpad.UserTiers.TITANIUM;
@@ -59,18 +59,18 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier placeTokensFuzz(
-        uint128 initialVolume,
+        uint128 _initialVolume,
         address addressForCollected,
         uint256 timeOfEndRegistration,
         uint256 price,
         uint8 tgePercent
     ) {
-        vm.assume(initialVolume > 1e16);
+        vm.assume(_initialVolume > 1e16);
         vm.assume(addressForCollected > address(20));
         vm.assume(timeOfEndRegistration > 1);
         vm.assume(price > 1e3);
 
-        uint256 initialVolume = uint256(initialVolume);
+        uint256 initialVolume = uint256(_initialVolume);
 
         uint256 nowTimestamp = block.timestamp;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
@@ -113,12 +113,12 @@ contract BuyTokensTest is BaseLaunchpadTest {
         _;
     }
 
-    modifier registerFuzz(uint16 amountOfTokens, uint64 amountOfTokens2) {
-        vm.assume(amountOfTokens >= 2000);
-        vm.assume(amountOfTokens2 >= 2000);
+    modifier registerFuzz(uint16 _amountOfTokens, uint64 _amountOfTokens2) {
+        vm.assume(_amountOfTokens >= 2000);
+        vm.assume(_amountOfTokens2 >= 2000);
 
-        uint256 amountOfTokens = uint256(amountOfTokens);
-        uint256 amountOfTokens2 = uint256(amountOfTokens2);
+        uint256 amountOfTokens = uint256(_amountOfTokens);
+        uint256 amountOfTokens2 = uint256(_amountOfTokens2);
 
         ILaunchpad.UserTiers tier = getTierByAmount(amountOfTokens);
         ILaunchpad.UserTiers tier2 = getTierByAmount(amountOfTokens);
@@ -225,21 +225,4 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
         vm.stopPrank();
     }
-
-    // function test_BuyTokens_Fuzz(
-    //     uint128 initialVolume,
-    //     address addressForCollected,
-    //     uint256 timeOfEndRegistration,
-    //     uint256 price,
-    //     uint8 tgePercent,
-    //     uint16 amountOfTokens,
-    //     uint64 amountOfTokens2,
-    //     address paymentContract
-    // )
-    //     public
-    //     placeTokensFuzz(initialVolume, addressForCollected, timeOfEndRegistration, price, tgePercent)
-    //     registerFuzz(amountOfTokens, amountOfTokens2)
-    // {
-
-    // }
 }

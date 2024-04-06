@@ -33,29 +33,12 @@ contract PlaceTokensTest is BaseLaunchpadTest {
         testToken.approve(address(launchpad), type(uint256).max);
         launchpad.placeTokens(input);
 
-        (
-            uint256 test_price,
-            uint256 test_volumeForYieldStakers,
-            uint256 test_volumeForLowTiers,
-            uint256 test_volumeForHighTiers,
-            uint256 test_initialVolumeForLowTiers,
-            uint256 test_initialVolumeForHighTiers,
-            uint256 test_lowTiersWeightsSum,
-            uint256 test_highTiersWeightsSum,
-            uint8 test_tokenDecimals,
-            address test_addressForCollected,
-            ILaunchpad.SaleStatus test_status,
-            uint256 test_currentStateEnd,
-            uint256 test_vestingStartTimestamp,
-            uint256 test_vestingDuration,
-            uint256 test_tgeTimestamp,
-            uint8 test_tgePercent
-        ) = launchpad.placedTokens(address(testToken));
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         assertEq(testToken.balanceOf(address(launchpad)), initialVolume);
-        assertEq(test_price, price);
-        assertEq(test_volumeForYieldStakers, initialVolumeForYieldStakers);
-        assertEq(test_tokenDecimals, 18);
+        assertEq(placedToken.price, price);
+        assertEq(placedToken.volumeForYieldStakers, initialVolumeForYieldStakers);
+        assertEq(placedToken.tokenDecimals, 18);
 
         vm.expectRevert("BlastUP: This token was already placed");
 

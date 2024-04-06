@@ -40,18 +40,18 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     modifier placeTokensFuzz(
-        uint128 initialVolume,
+        uint128 _initialVolume,
         address addressForCollected,
         uint256 timeOfEndRegistration,
         uint256 price,
         uint8 tgePercent
     ) {
-        vm.assume(initialVolume > 1e16);
+        vm.assume(_initialVolume > 1e16);
         vm.assume(addressForCollected > address(20));
         vm.assume(timeOfEndRegistration > 1);
         vm.assume(price > 1e3);
 
-        uint256 initialVolume = uint256(initialVolume);
+        uint256 initialVolume = uint256(_initialVolume);
 
         uint256 nowTimestamp = block.timestamp;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
@@ -197,24 +197,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         assertEq(userInfo.registered, true);
         assertEq(launchpad.userAllowedAllocation(address(testToken), user), 0);
 
-        (
-            uint256 test_price,
-            uint256 test_volumeForYieldStakers,
-            uint256 test_volumeForLowTiers,
-            uint256 test_volumeForHighTiers,
-            uint256 test_initialVolumeForLowTiers,
-            uint256 test_initialVolumeForHighTiers,
-            uint256 test_lowTiersWeightsSum,
-            uint256 test_highTiersWeightsSum,
-            uint8 test_tokenDecimals,
-            address test_addressForCollected,
-            ILaunchpad.SaleStatus test_status,
-            uint256 test_currentStateEnd,
-            uint256 test_vestingStartTimestamp,
-            uint256 test_vestingDuration,
-            uint256 test_tgeTimestamp,
-            uint8 test_tgePercent
-        ) = launchpad.placedTokens(address(testToken));
+        //ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         // assertEq(test_lowTiersWeightsSum, amountOfTokens);
 

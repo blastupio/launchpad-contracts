@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.25;
 
-// import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -38,6 +37,7 @@ contract Launchpad is Ownable, ILaunchpad {
     mapping(address => PlacedToken) public placedTokens;
     mapping(UserTiers => uint256) public minAmountForTier;
     mapping(UserTiers => uint256) public weightForTier;
+    mapping(address => mapping(address => User)) public users;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -78,23 +78,27 @@ contract Launchpad is Ownable, ILaunchpad {
     /* ========== VIEWS ========== */
 
     function userInfo(address token, address user) public view returns (User memory) {
-        return placedTokens[token].users[user];
+        return users[token][user];
+    }
+
+    function getPlacedToken(address token) external view returns(PlacedToken memory) {
+        return placedTokens[token];
     }
 
     function userAllowedAllocation(address token, address user) public view returns (uint256) {
-        if (placedTokens[token].users[user].registered) {
+        if (users[token][user].registered) {
             if (placedTokens[token].status == SaleStatus.PUBLIC_SALE) {
-                UserTiers tier = placedTokens[token].users[user].tier;
+                UserTiers tier = users[token][user].tier;
                 uint256 weight = weightForTier[tier];
-                uint256 boughtAmount = placedTokens[token].users[user].boughtAmount;
-                if (placedTokens[token].users[user].tier < UserTiers.TITANIUM) {
+                uint256 boughtAmount = users[token][user].boughtAmount;
+                if (users[token][user].tier < UserTiers.TITANIUM) {
                     return weight * placedTokens[token].initialVolumeForLowTiers
                         / placedTokens[token].lowTiersWeightsSum - boughtAmount;
                 } else {
                     return weight * placedTokens[token].initialVolumeForHighTiers
                         / placedTokens[token].highTiersWeightsSum - boughtAmount;
                 }
-            } else if (placedTokens[token].users[user].tier >= UserTiers.TITANIUM) {
+            } else if (users[token][user].tier >= UserTiers.TITANIUM) {
                 return placedTokens[token].volumeForHighTiers;
             }
         }
@@ -102,9 +106,9 @@ contract Launchpad is Ownable, ILaunchpad {
     }
 
     function getClaimableAmount(address token, address user) public view returns (uint256) {
-        uint256 tgeAmount = placedTokens[token].users[user].boughtAmount * placedTokens[token].tgePercent / 100;
-        uint256 vestedAmount = placedTokens[token].users[user].boughtAmount - tgeAmount;
-        uint256 claimedAmount = placedTokens[token].users[user].claimedAmount;
+        uint256 tgeAmount = users[token][user].boughtAmount * placedTokens[token].tgePercent / 100;
+        uint256 vestedAmount = users[token][user].boughtAmount - tgeAmount;
+        uint256 claimedAmount = users[token][user].claimedAmount;
 
         if (block.timestamp < placedTokens[token].tgeTimestamp) return 0;
         if (block.timestamp < placedTokens[token].vestingStartTimestamp) return tgeAmount - claimedAmount;
@@ -193,7 +197,7 @@ contract Launchpad is Ownable, ILaunchpad {
 
     function register(address token, UserTiers tier, uint256 amountOfTokens, bytes memory signature) external {
         PlacedToken storage placedToken = placedTokens[token];
-        User storage user = placedToken.users[msg.sender];
+        User storage user = users[token][msg.sender];
 
         address signer_ = keccak256(abi.encodePacked(msg.sender, amountOfTokens, address(this), block.chainid))
             .toEthSignedMessageHash().recover(signature);
@@ -269,6 +273,7 @@ contract Launchpad is Ownable, ILaunchpad {
         returns (uint256)
     {
         PlacedToken storage placedToken = placedTokens[token];
+        User storage user = users[token][receiver];
 
         require(
             placedToken.status == SaleStatus.PUBLIC_SALE || placedToken.status == SaleStatus.FCFS_SALE,
@@ -289,10 +294,10 @@ contract Launchpad is Ownable, ILaunchpad {
 
         if (msg.sender != stakingContract) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
-            require(userAllowedAllocation(token, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
+            require(userAllowedAllocation(token, receiver) >= tokensAmount, "BlastUP: You have not enough allocation");
 
             // Underflow not possible, amount will be set to 0 if not enough
-            if (placedToken.users[receiver].tier < UserTiers.TITANIUM) {
+            if (users[token][receiver].tier < UserTiers.TITANIUM) {
                 placedToken.volumeForLowTiers -= tokensAmount;
             } else {
                 placedToken.volumeForHighTiers -= tokensAmount;
@@ -305,7 +310,7 @@ contract Launchpad is Ownable, ILaunchpad {
             revert InvalidSaleStatus(token);
         }
 
-        placedToken.users[receiver].boughtAmount += tokensAmount;
+        user.boughtAmount += tokensAmount;
 
         if (msg.value > 0) {
             payable(placedToken.addressForCollected).call{value: msg.value};
@@ -337,7 +342,7 @@ contract Launchpad is Ownable, ILaunchpad {
     }
 
     function claimTokens(address token) external {
-        User storage user = placedTokens[token].users[msg.sender];
+        User storage user = users[token][msg.sender];
 
         uint256 claimableAmount = getClaimableAmount(token, msg.sender);
 
