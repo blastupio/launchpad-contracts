@@ -50,6 +50,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         vm.assume(addressForCollected > address(20));
         vm.assume(timeOfEndRegistration > 1);
         vm.assume(price > 1e3);
+        vm.assume(tgePercent <= 100);
 
         uint256 initialVolume = uint256(_initialVolume);
 
@@ -278,13 +279,18 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         ILaunchpad.UserTiers tier5 = ILaunchpad.UserTiers.PLATINUM;
         ILaunchpad.UserTiers tier6 = ILaunchpad.UserTiers.DIAMOND;
 
-        vm.assume(amountOfTokens < launchpad.minAmountForTier(tier1));
-        vm.assume(amountOfTokens1 >= launchpad.minAmountForTier(tier1));
-        vm.assume(amountOfTokens2 >= launchpad.minAmountForTier(tier2));
-        vm.assume(amountOfTokens3 >= launchpad.minAmountForTier(tier3));
-        vm.assume(amountOfTokens4 >= launchpad.minAmountForTier(tier4));
-        vm.assume(amountOfTokens5 >= launchpad.minAmountForTier(tier5));
-        vm.assume(amountOfTokens6 >= launchpad.minAmountForTier(tier6));
+        amountOfTokens = bound(amountOfTokens, 0, launchpad.minAmountForTier(tier1) - 1);
+        amountOfTokens1 =
+            bound(amountOfTokens1, launchpad.minAmountForTier(tier1), launchpad.minAmountForTier(tier2) - 1);
+        amountOfTokens2 =
+            bound(amountOfTokens2, launchpad.minAmountForTier(tier2), launchpad.minAmountForTier(tier3) - 1);
+        amountOfTokens3 =
+            bound(amountOfTokens3, launchpad.minAmountForTier(tier3), launchpad.minAmountForTier(tier4) - 1);
+        amountOfTokens4 =
+            bound(amountOfTokens4, launchpad.minAmountForTier(tier4), launchpad.minAmountForTier(tier5) - 1);
+        amountOfTokens5 =
+            bound(amountOfTokens5, launchpad.minAmountForTier(tier5), launchpad.minAmountForTier(tier6) - 1);
+        amountOfTokens6 = bound(amountOfTokens6, launchpad.minAmountForTier(tier6), 1e36);
 
         bytes memory signature = getSignature(user, amountOfTokens);
 

@@ -81,7 +81,7 @@ contract Launchpad is Ownable, ILaunchpad {
         return users[token][user];
     }
 
-    function getPlacedToken(address token) external view returns(PlacedToken memory) {
+    function getPlacedToken(address token) external view returns (PlacedToken memory) {
         return placedTokens[token];
     }
 
@@ -129,6 +129,11 @@ contract Launchpad is Ownable, ILaunchpad {
         return uint256(ans) * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
     }
 
+    function _convertUSDBToETH(uint256 volume) private view returns (uint256) {
+        (, int256 ans,,,) = oracle.latestRoundData();
+        return volume * (10 ** 18) * (10 ** oracleDecimals) / (10 ** decimalsUSDB) / uint256(ans);
+    }
+
     function _calculateTokensAmount(uint256 volume, address paymentContract, uint8 decimals, uint256 price)
         private
         view
@@ -143,6 +148,34 @@ contract Launchpad is Ownable, ILaunchpad {
         require(tokensAmount > 0, "BlastUP: you can not buy zero tokens");
 
         return tokensAmount;
+    }
+
+    function _buyTokens(
+        PlacedToken storage placedToken,
+        User storage user,
+        address receiver,
+        address token,
+        uint256 tokensAmount
+    ) internal {
+        if (msg.sender != stakingContract) {
+            require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
+            require(userAllowedAllocation(token, receiver) >= tokensAmount, "BlastUP: You have not enough allocation");
+
+            // Underflow not possible, amount will be set to 0 if not enough
+            if (users[token][receiver].tier < UserTiers.TITANIUM) {
+                placedToken.volumeForLowTiers -= tokensAmount;
+            } else {
+                placedToken.volumeForHighTiers -= tokensAmount;
+            }
+        } else if (placedToken.status == SaleStatus.PUBLIC_SALE) {
+            require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
+
+            placedToken.volumeForYieldStakers -= tokensAmount;
+        } else {
+            revert InvalidSaleStatus(token);
+        }
+
+        user.boughtAmount += tokensAmount;
     }
 
     /* ========== FUNCTIONS ========== */
@@ -284,43 +317,61 @@ contract Launchpad is Ownable, ILaunchpad {
         if (msg.value > 0) {
             paymentContract = address(WETH);
             volume = msg.value;
+            payable(placedToken.addressForCollected).call{value: msg.value};
         } else {
             require(volume > 0, "BlastUP: volume must be greater than 0");
-            require((paymentContract == address(WETH)) || (paymentContract == address(USDB)));
+            require(
+                (paymentContract == address(WETH)) || (paymentContract == address(USDB)),
+                "BlastUP: incorrect payment contract"
+            );
+            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
         }
 
         uint256 tokensAmount =
             _calculateTokensAmount(volume, paymentContract, placedToken.tokenDecimals, placedToken.price);
 
-        if (msg.sender != stakingContract) {
-            require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
-            require(userAllowedAllocation(token, receiver) >= tokensAmount, "BlastUP: You have not enough allocation");
-
-            // Underflow not possible, amount will be set to 0 if not enough
-            if (users[token][receiver].tier < UserTiers.TITANIUM) {
-                placedToken.volumeForLowTiers -= tokensAmount;
-            } else {
-                placedToken.volumeForHighTiers -= tokensAmount;
-            }
-        } else if (placedToken.status == SaleStatus.PUBLIC_SALE) {
-            require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
-
-            placedToken.volumeForYieldStakers -= tokensAmount;
-        } else {
-            revert InvalidSaleStatus(token);
-        }
-
-        user.boughtAmount += tokensAmount;
-
-        if (msg.value > 0) {
-            payable(placedToken.addressForCollected).call{value: msg.value};
-        } else {
-            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
-        }
+        _buyTokens(placedToken, user, receiver, token, tokensAmount);
 
         emit TokensBought(token, receiver, tokensAmount);
 
         return tokensAmount;
+    }
+
+    function buyTokensByQuantity(address token, address paymentContract, uint256 quantity, address receiver)
+        external
+        payable
+    {
+        PlacedToken storage placedToken = placedTokens[token];
+        User storage user = users[token][receiver];
+
+        require(
+            placedToken.status == SaleStatus.PUBLIC_SALE || placedToken.status == SaleStatus.FCFS_SALE,
+            "BlastUP: invalid status"
+        );
+        require(block.timestamp < placedToken.currentStateEnd, "BlastUP: round is ended");
+        require(quantity > 0, "BlastUP: quantitu must be greater than zero");
+
+        uint256 volume = quantity * placedToken.price / (10 ** placedToken.tokenDecimals);
+
+        if (msg.value > 0) {
+            paymentContract = address(WETH);
+            volume = _convertUSDBToETH(volume);
+            if (msg.value > volume) {
+                payable(msg.sender).call{value: msg.value - volume};
+            }
+            payable(placedToken.addressForCollected).call{value: volume};
+        } else {
+            if (paymentContract == address(WETH)) {
+                volume = _convertUSDBToETH(volume);
+            } else {
+                require(paymentContract == address(USDB));
+            }
+            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
+        }
+
+        _buyTokens(placedToken, user, receiver, token, quantity);
+
+        emit TokensBought(token, receiver, quantity);
     }
 
     function endSale(address token, address receiver) external onlyOwner {

@@ -82,10 +82,13 @@ contract Staking is Ownable {
     // function that operates with the lastIndex which will be updated
 
     function lastIndex(address targetToken) public view returns (uint256) {
-        return (
-            stakingInfos[targetToken].totalSupplyScaled.wadMul(stakingInfos[targetToken].lastIndex)
-                + IERC20Rebasing(targetToken).getClaimableAmount(address(this))
-        ).wadDiv(stakingInfos[targetToken].totalSupplyScaled);
+        uint256 totalSupplyScaled = stakingInfos[targetToken].totalSupplyScaled;
+        return totalSupplyScaled == 0
+            ? WadMath.WAD
+            : (
+                totalSupplyScaled.wadMul(stakingInfos[targetToken].lastIndex)
+                    + IERC20Rebasing(targetToken).getClaimableAmount(address(this))
+            ).wadDiv(totalSupplyScaled);
     }
 
     function totalSupply(address targetToken) public view returns (uint256) {

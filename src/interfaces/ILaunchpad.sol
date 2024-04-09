@@ -74,5 +74,9 @@ interface ILaunchpad {
         payable
         returns (uint256);
 
+    function buyTokensByQuantity(address token, address paymentContract, uint256 quantity, address receiver)
+        external
+        payable;
+
     function claimTokens(address token) external;
 }

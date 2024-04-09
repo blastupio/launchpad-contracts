@@ -10,3 +10,6 @@ via_ir = true
 
 [fuzz]
 runs = 1000
+
+[invariant]
+depth = 100

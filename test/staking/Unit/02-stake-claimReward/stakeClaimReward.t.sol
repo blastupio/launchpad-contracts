@@ -4,7 +4,6 @@ pragma solidity >=0.8.25;
 import {BaseStakingTest, Staking} from "../../BaseStaking.t.sol";
 
 contract StakeClaimRewardTest is BaseStakingTest {
-
     modifier stakeUSDB() {
         vm.startPrank(user);
 
@@ -68,5 +67,4 @@ contract StakeClaimRewardTest is BaseStakingTest {
 
         vm.stopPrank();
     }
-
 }

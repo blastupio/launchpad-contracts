@@ -38,7 +38,7 @@ contract BaseLaunchpadTest is Test {
     ERC20RebasingMock constant USDB = ERC20RebasingMock(0x4300000000000000000000000000000000000003);
     WETHRebasingMock constant WETH = WETHRebasingMock(0x4300000000000000000000000000000000000004);
 
-    function setUp() public {
+    function setUp() public virtual {
         adminPrivateKey = 0xa11ce;
         admin = vm.addr(adminPrivateKey);
         user = address(10);

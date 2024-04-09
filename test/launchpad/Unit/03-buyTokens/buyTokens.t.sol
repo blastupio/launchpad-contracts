@@ -2,6 +2,7 @@
 pragma solidity >=0.8.25;
 
 import {BaseLaunchpadTest, Launchpad, ILaunchpad, MessageHashUtils, ECDSA} from "../../BaseLaunchpad.t.sol";
+import "forge-std/console.sol";
 
 contract BuyTokensTest is BaseLaunchpadTest {
     using MessageHashUtils for bytes32;
@@ -59,18 +60,21 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier placeTokensFuzz(
-        uint128 _initialVolume,
-        address addressForCollected,
+        uint256 initialVolume,
+        uint160 _addressForCollected,
         uint256 timeOfEndRegistration,
         uint256 price,
-        uint8 tgePercent
+        uint256 tgePercent,
+        uint256 volumeForHighTiers
     ) {
-        vm.assume(_initialVolume > 1e16);
-        vm.assume(addressForCollected > address(20));
-        vm.assume(timeOfEndRegistration > 1);
-        vm.assume(price > 1e3);
+        initialVolume = bound(initialVolume, 1e21, 1e40);
+        address addressForCollected = address(uint160(bound(_addressForCollected, 100, type(uint160).max)));
 
-        uint256 initialVolume = uint256(_initialVolume);
+        price = bound(price, 1e3, 1e19);
+        tgePercent = bound(tgePercent, 0, 100);
+        volumeForHighTiers = bound(volumeForHighTiers, 50, 90);
+        uint256 volumeForLowTiers = 95 - volumeForHighTiers;
+        uint256 volumeForYieldStakers = 100 - volumeForLowTiers - volumeForHighTiers;
 
         uint256 nowTimestamp = block.timestamp;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
@@ -87,12 +91,12 @@ contract BuyTokensTest is BaseLaunchpadTest {
             timeOfEndRegistration: timeOfEndRegistration,
             addressForCollected: addressForCollected,
             vestingDuration: vestingDuration,
-            tgePercent: tgePercent
+            tgePercent: uint8(tgePercent)
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, initialVolume + 1);
-        testToken.approve(address(launchpad), type(uint256).max);
+        testToken.approve(address(launchpad), initialVolume + 1);
         launchpad.placeTokens(input);
         vm.stopPrank();
         _;
@@ -113,15 +117,12 @@ contract BuyTokensTest is BaseLaunchpadTest {
         _;
     }
 
-    modifier registerFuzz(uint16 _amountOfTokens, uint64 _amountOfTokens2) {
-        vm.assume(_amountOfTokens >= 2000);
-        vm.assume(_amountOfTokens2 >= 2000);
-
-        uint256 amountOfTokens = uint256(_amountOfTokens);
-        uint256 amountOfTokens2 = uint256(_amountOfTokens2);
+    modifier registerFuzz(uint256 amountOfTokens, uint256 amountOfTokens2) {
+        amountOfTokens = bound(amountOfTokens, 2000, 19999);
+        amountOfTokens2 = bound(amountOfTokens2, 20000, 1e30);
 
         ILaunchpad.UserTiers tier = getTierByAmount(amountOfTokens);
-        ILaunchpad.UserTiers tier2 = getTierByAmount(amountOfTokens);
+        ILaunchpad.UserTiers tier2 = getTierByAmount(amountOfTokens2);
 
         bytes memory signature = getSignature(user, amountOfTokens);
 
@@ -135,13 +136,13 @@ contract BuyTokensTest is BaseLaunchpadTest {
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
         vm.stopPrank();
 
-        signature = getSignature(user3, amountOfTokens);
+        signature = getSignature(user3, amountOfTokens2);
 
         vm.startPrank(user3);
         launchpad.register(address(testToken), tier2, amountOfTokens2, signature);
         vm.stopPrank();
 
-        signature = getSignature(user4, amountOfTokens);
+        signature = getSignature(user4, amountOfTokens2);
 
         vm.startPrank(user4);
         launchpad.register(address(testToken), tier2, amountOfTokens2, signature);
@@ -149,6 +150,27 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
         vm.startPrank(admin);
         launchpad.endRegistration(address(testToken));
+        vm.stopPrank();
+        _;
+    }
+
+    modifier stake() {
+        vm.startPrank(user5);
+
+        USDB.mint(user5, 100 * 10 ** 19);
+        USDB.approve(address(staking), type(uint256).max);
+
+        staking.stake(address(USDB), 2e18);
+
+        vm.stopPrank();
+
+        vm.startPrank(user6);
+
+        WETH.mint(user6, 100 * 10 ** 19);
+        WETH.approve(address(staking), type(uint256).max);
+
+        staking.stake(address(WETH), 2e18);
+
         vm.stopPrank();
         _;
     }
@@ -204,7 +226,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.startPrank(user);
-
+        USDB.mint(user, volume + 1);
+        USDB.approve(address(launchpad), volume + 1);
         vm.expectRevert("BlastUP: the receiver must be the sender");
         launchpad.buyTokens(address(testToken), address(USDB), volume, user2);
 
@@ -219,10 +242,187 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.startPrank(user2);
-
+        USDB.mint(user2, volume + 1);
+        USDB.approve(address(launchpad), volume + 1);
         vm.expectRevert("BlastUP: You have not enough allocation");
         launchpad.buyTokens(address(testToken), address(USDB), volume, user2);
 
+        vm.stopPrank();
+    }
+
+    function test_buyingFuzz(
+        uint256 initialVolume,
+        uint160 addressForCollected,
+        uint256 timeOfEndRegistration,
+        uint256 price,
+        uint256 tgePercent,
+        uint256 volumeForHighTiers,
+        uint256 amountOfTokens,
+        uint256 amountOfTokens2
+    )
+        public
+        placeTokensFuzz(initialVolume, addressForCollected, timeOfEndRegistration, price, tgePercent, volumeForHighTiers)
+        registerFuzz(amountOfTokens, amountOfTokens2)
+        stake
+    {
+        uint256 endTimeOfTheCurrentRound = block.timestamp + 10;
+
+        vm.startPrank(admin);
+        launchpad.startPublicSale(address(testToken), endTimeOfTheCurrentRound);
+        vm.stopPrank();
+
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        uint256 sumLowTiersUsersAllowedAllocation = launchpad.userAllowedAllocation(address(testToken), user)
+            + launchpad.userAllowedAllocation(address(testToken), user2);
+
+        assertApproxEqAbs(sumLowTiersUsersAllowedAllocation, placedToken.initialVolumeForLowTiers, 10);
+
+        uint256 sumHighTiersUsersAllowedAllocation = launchpad.userAllowedAllocation(address(testToken), user3)
+            + launchpad.userAllowedAllocation(address(testToken), user4);
+
+        assertApproxEqAbs(sumHighTiersUsersAllowedAllocation, placedToken.initialVolumeForHighTiers, 10);
+
+        vm.startPrank(user);
+        ILaunchpad.User memory userInfoBefore = launchpad.userInfo(address(testToken), user);
+
+        uint256 tokensAmount = launchpad.userAllowedAllocation(address(testToken), user) / 2;
+        uint256 volume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
+
+        USDB.mint(user, volume + 1e18);
+        USDB.approve(address(launchpad), volume + 1);
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user);
+
+        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
+        vm.stopPrank();
+
+        vm.startPrank(user3);
+        userInfoBefore = launchpad.userInfo(address(testToken), user3);
+        tokensAmount = launchpad.userAllowedAllocation(address(testToken), user) / 2;
+
+        volume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
+        volume /= 100; // usdbToEth
+        WETH.mint(user3, volume + 1e18);
+        WETH.approve(address(launchpad), volume + 1);
+        launchpad.buyTokens(address(testToken), address(WETH), volume, user3);
+
+        userInfo = launchpad.userInfo(address(testToken), user3);
+        assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        userInfoBefore = launchpad.userInfo(address(testToken), user2);
+
+        tokensAmount = launchpad.userAllowedAllocation(address(testToken), user2) / 2;
+
+        USDB.mint(user2, tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 1e18);
+        USDB.approve(address(launchpad), tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 1e18);
+        launchpad.buyTokensByQuantity(address(testToken), address(USDB), tokensAmount, user2);
+
+        userInfo = launchpad.userInfo(address(testToken), user2);
+        assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, 1000);
+        vm.stopPrank();
+
+        vm.startPrank(user4);
+        userInfoBefore = launchpad.userInfo(address(testToken), user4);
+
+        tokensAmount = launchpad.userAllowedAllocation(address(testToken), user4) / 2;
+        tokensAmount /= 100;
+        WETH.mint(user4, tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 1e18);
+        WETH.approve(address(launchpad), tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 1e18);
+        launchpad.buyTokensByQuantity(address(testToken), address(WETH), tokensAmount, user4);
+
+        userInfo = launchpad.userInfo(address(testToken), user4);
+        assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, 1000);
+        vm.stopPrank();
+
+        // TEST BUYING FROM STAKING
+
+        // vm.startPrank(user5);
+        // uint256 rewardAmount;
+        // (, uint256 reward) = staking.balanceAndRewards(address(USDB), user5);
+        // uint256 _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
+        // rewardAmount = bound(rewardAmount, placedToken.price, _max);
+        // staking.claimReward{gas: 1e18}(address(USDB), address(testToken), rewardAmount, false);
+
+        // userInfo = launchpad.userInfo(address(testToken), user5);
+        // assertGt(userInfo.boughtAmount, 0);
+        // vm.stopPrank();
+
+        // vm.startPrank(user6);
+        // rewardAmount = 0;
+        // (, reward) = staking.balanceAndRewards(address(WETH), user6);
+        // _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
+        // rewardAmount = bound(rewardAmount, placedToken.price, _max);
+        // // rewardAmount = bound(rewardAmount, placedToken.price / (10 ** placedToken.tokenDecimals) + 1, _max);
+        // staking.claimReward{gas: 1e18}(address(WETH), address(testToken), rewardAmount, false);
+
+        // userInfo = launchpad.userInfo(address(testToken), user6);
+        // assertGt(userInfo.boughtAmount, 0);
+        // vm.stopPrank();
+
+        // START FCFS ROUND
+
+        vm.startPrank(admin);
+        launchpad.startFCFSSale(address(testToken), block.timestamp + 15);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        volume = 100;
+        USDB.approve(address(launchpad), volume + 1);
+        vm.expectRevert();
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        volume = 100;
+        USDB.approve(address(launchpad), volume + 1);
+        vm.expectRevert();
+        launchpad.buyTokensByQuantity(address(testToken), address(USDB), volume, user2);
+        vm.stopPrank();
+
+        // expect revert buying by staking yield
+        // vm.startPrank(user5);
+        // (, reward) = staking.balanceAndRewards(address(USDB), user5);
+        // _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
+        // rewardAmount = bound(rewardAmount, placedToken.price / (10 ** placedToken.tokenDecimals) + 1, _max);
+        // vm.expectRevert();
+        // staking.claimReward(address(USDB), address(testToken), rewardAmount, false);
+        // vm.stopPrank();
+
+        // vm.startPrank(user6);
+        // (, reward) = staking.balanceAndRewards(address(WETH), user6);
+        // _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
+        // rewardAmount = bound(rewardAmount, placedToken.price / (10 ** placedToken.tokenDecimals) + 1, _max);
+        // vm.expectRevert();
+        // staking.claimReward(address(WETH), address(testToken), rewardAmount, false);
+        // vm.stopPrank();
+
+        vm.startPrank(user3);
+        userInfoBefore = launchpad.userInfo(address(testToken), user3);
+        tokensAmount = launchpad.userAllowedAllocation(address(testToken), user3) / 2;
+
+        volume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
+        volume /= 100;
+        WETH.mint(user3, volume + 10);
+        WETH.approve(address(launchpad), volume + 10);
+        launchpad.buyTokens(address(testToken), address(WETH), volume, user3);
+
+        userInfo = launchpad.userInfo(address(testToken), user3);
+        assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
+        vm.stopPrank();
+
+        vm.startPrank(user4);
+        userInfoBefore = launchpad.userInfo(address(testToken), user4);
+
+        tokensAmount = launchpad.userAllowedAllocation(address(testToken), user4) / 2;
+        USDB.mint(user4, tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 10);
+        USDB.approve(address(launchpad), tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 1e18);
+        launchpad.buyTokensByQuantity(address(testToken), address(USDB), tokensAmount, user4);
+
+        userInfo = launchpad.userInfo(address(testToken), user4);
+        assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
         vm.stopPrank();
     }
 }
