@@ -31,6 +31,7 @@ contract BaseStakingTest is Test {
     address user;
     address user2;
     address user3;
+    address user4;
 
     ERC20RebasingMock constant USDB = ERC20RebasingMock(0x4300000000000000000000000000000000000003);
     WETHRebasingMock constant WETH = WETHRebasingMock(0x4300000000000000000000000000000000000004);
@@ -41,6 +42,7 @@ contract BaseStakingTest is Test {
         user = address(10);
         user2 = address(11);
         user3 = address(12);
+        user4 = address(13);
 
         ERC20RebasingMock usdb = new ERC20RebasingMock("USDB", "USDB", 18);
         bytes memory code = address(usdb).code;
@@ -57,9 +59,10 @@ contract BaseStakingTest is Test {
         uint256 nonce = vm.getNonce(admin);
         address launchpadAddress = vm.computeCreateAddress(admin, nonce);
         address stakingAddress = vm.computeCreateAddress(admin, nonce + 1);
-
+        vm.startPrank(admin);
         launchpad =
             new Launchpad(address(blp), stakingAddress, address(oracle), admin, admin, address(USDB), address(WETH));
         staking = new Staking(launchpadAddress, address(blp), admin, address(oracle), address(USDB), address(WETH));
+        vm.stopPrank();
     }
 }

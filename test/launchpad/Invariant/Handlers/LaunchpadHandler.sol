@@ -38,8 +38,6 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         uint256 sumUsersAllowedAllocation;
     }
 
-    // mapping(address => uint256) public ghost_stakedSums;
-    // mapping(address => uint256) public ghost_tokensVolume;
     mapping(address => PlacedTokenInvariants) ghost_placedToken;
 
     mapping(bytes32 => uint256) public calls;

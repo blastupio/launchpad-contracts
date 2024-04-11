@@ -64,9 +64,10 @@ contract BaseLaunchpadTest is Test {
         uint256 nonce = vm.getNonce(admin);
         address launchpadAddress = vm.computeCreateAddress(admin, nonce);
         address stakingAddress = vm.computeCreateAddress(admin, nonce + 1);
-
+        vm.startPrank(admin);
         launchpad =
             new Launchpad(address(blp), stakingAddress, address(oracle), admin, admin, address(USDB), address(WETH));
         staking = new Staking(launchpadAddress, address(blp), admin, address(oracle), address(USDB), address(WETH));
+        vm.stopPrank();
     }
 }

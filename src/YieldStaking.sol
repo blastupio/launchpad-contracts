@@ -18,7 +18,6 @@ contract Staking is Ownable {
     using SafeERC20 for IERC20Rebasing;
 
     error InvalidPool(address token);
-    error InvalidTokenForWithdraw(address token);
 
     /* ========== STATE VARIABLES ========== */
 
@@ -255,10 +254,8 @@ contract Staking is Ownable {
             _unwrapETH(amount);
             (bool sent,) = payable(msg.sender).call{value: amount}("");
             require(sent, "BlastUP: Failed to send Ether");
-        } else if (targetToken == address(WETH) || targetToken == address(USDB)) {
-            IERC20Rebasing(targetToken).safeTransfer(msg.sender, amount);
         } else {
-            revert InvalidTokenForWithdraw(targetToken);
+            IERC20Rebasing(targetToken).safeTransfer(msg.sender, amount);
         }
 
         emit Withdrawn(targetToken, msg.sender, amount);

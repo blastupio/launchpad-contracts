@@ -185,11 +185,42 @@ contract Launchpad is Ownable, ILaunchpad {
     }
 
     function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOwner {
+        require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");
+        require(
+            _vestingStartTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _vestingStartTimestamp,
+            "BlastUP: invalid vesting start timestamp"
+        );
         placedTokens[token].vestingStartTimestamp = _vestingStartTimestamp;
     }
 
     function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOwner {
+        require(placedTokens[token].tgeTimestamp > block.timestamp, "BlastUP: tge already started");
+        require(
+            _tgeTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _tgeTimestamp,
+            "BlastUP: invalid tge timestamp"
+        );
         placedTokens[token].tgeTimestamp = _tgeTimestamp;
+    }
+
+    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOwner {
+        minAmountForTier[UserTiers.BRONZE] = amounts[0];
+        minAmountForTier[UserTiers.SILVER] = amounts[1];
+        minAmountForTier[UserTiers.GOLD] = amounts[2];
+        minAmountForTier[UserTiers.TITANIUM] = amounts[3];
+        minAmountForTier[UserTiers.PLATINUM] = amounts[4];
+        minAmountForTier[UserTiers.DIAMOND] = amounts[5];
+    }
+
+    function setWeightsForTiers(uint256[6] memory tiers) external onlyOwner {
+        require(
+            tiers[0] + tiers[1] + tiers[2] == 100 && tiers[3] + tiers[4] + tiers[5] == 100, "BlastUP: invalid weights"
+        );
+        weightForTier[UserTiers.BRONZE] = tiers[0];
+        weightForTier[UserTiers.SILVER] = tiers[1];
+        weightForTier[UserTiers.GOLD] = tiers[2];
+        weightForTier[UserTiers.TITANIUM] = tiers[3];
+        weightForTier[UserTiers.PLATINUM] = tiers[4];
+        weightForTier[UserTiers.DIAMOND] = tiers[5];
     }
 
     function placeTokens(PlaceTokensInput memory input) external onlyOwner {
@@ -386,6 +417,9 @@ contract Launchpad is Ownable, ILaunchpad {
             placedToken.volumeForHighTiers + placedToken.volumeForLowTiers + placedToken.volumeForYieldStakers;
 
         placedToken.status = SaleStatus.POST_SALE;
+        placedToken.volumeForHighTiers = 0;
+        placedToken.volumeForLowTiers = 0;
+        placedToken.volumeForYieldStakers = 0;
 
         IERC20(token).safeTransfer(receiver, volume);
 
