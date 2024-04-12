@@ -7,7 +7,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
-import {BaseStakingTest, Staking, WadMath, ERC20Mock, ERC20RebasingMock} from "../../BaseStaking.t.sol";
+import {BaseStakingTest, YieldStaking, WadMath, ERC20Mock, ERC20RebasingMock} from "../../BaseStaking.t.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {WadMath} from "../../../../src/libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -18,7 +18,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
     using WadMath for uint256;
     using Math for uint256;
 
-    Staking public staking;
+    YieldStaking public staking;
     address internal immutable usdb;
     address internal immutable weth;
 
@@ -46,7 +46,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         _;
     }
 
-    constructor(Staking _staking, address _usdb, address _weth) {
+    constructor(YieldStaking _staking, address _usdb, address _weth) {
         staking = _staking;
         usdb = _usdb;
         weth = _weth;
@@ -64,7 +64,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
     function stake(uint256 amount, bool WETHOrUSDB) public createActor countCall("stake") {
         address depositToken = WETHOrUSDB ? usdb : weth;
-        amount = _bound(amount, 0, 10 ** IERC20Metadata(depositToken).decimals());
+        amount = _bound(amount, 0, 1_000_000_000 * 10 ** IERC20Metadata(depositToken).decimals());
 
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(depositToken, currentActor);
         uint256 balanceAfter = balance + rewards + amount;
@@ -107,7 +107,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         address targetToken = WETHOrUSDB ? usdb : weth;
         (uint256 balanceOfUser,) = staking.balanceAndRewards(targetToken, currentActor);
 
-        Staking.StakingUser memory user = staking.userInfo(targetToken, currentActor);
+        YieldStaking.StakingUser memory user = staking.userInfo(targetToken, currentActor);
 
         amount = _bound(amount, 0, balanceOfUser);
         vm.assume(amount > 0);
@@ -152,7 +152,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         countCall("forceWithdrawAll")
     {
         address token = useWETH ? weth : usdb;
-        Staking.StakingUser memory user = staking.userInfo(token, currentActor);
+        YieldStaking.StakingUser memory user = staking.userInfo(token, currentActor);
         if (block.timestamp < user.timestampToWithdraw) {
             vm.warp(user.timestampToWithdraw);
         }

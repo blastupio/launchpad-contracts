@@ -1,7 +1,7 @@
 // // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
-import {BaseStakingTest, Staking, WadMath} from "../BaseStaking.t.sol";
+import {BaseStakingTest, YieldStaking, WadMath} from "../BaseStaking.t.sol";
 import {StakingHandler} from "./Handlers/StakingHandler.sol";
 
 contract StakingInvariant is BaseStakingTest {

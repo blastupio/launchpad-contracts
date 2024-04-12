@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseStakingTest, Staking} from "../../BaseStaking.t.sol";
+import {BaseStakingTest, YieldStaking} from "../../BaseStaking.t.sol";
 
 contract StakeClaimRewardWithdrawTest is BaseStakingTest {
     modifier setMinTimeToWithdrawMuchGreaterThenNow() {
@@ -91,7 +91,7 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
     function test_RevertWithdraw_InvalidPool() public stakeAndClaimUSDB {
         vm.startPrank(user);
 
-        vm.expectRevert(abi.encodeWithSelector(Staking.InvalidPool.selector, address(testToken)));
+        vm.expectRevert(abi.encodeWithSelector(YieldStaking.InvalidPool.selector, address(testToken)));
 
         staking.withdraw(address(testToken), 1e18, false);
 

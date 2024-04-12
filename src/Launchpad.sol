@@ -10,9 +10,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
-contract Launchpad is AccessControlUpgradeable, ILaunchpad {
+contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -20,24 +20,19 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
     error InvalidTokenForBuying(address token);
     error InvalidSaleStatus(address token);
 
-    /* ========== STATE VARIABLES ========== */
+    /* ========== IMMUTABLE VARIABLES ========== */
+    address public immutable yieldStaking;
+    IERC20 public immutable USDB;
+    IERC20 public immutable WETH;
+    uint8 public immutable decimalsUSDB;
+    IChainlinkOracle public immutable oracle;
+    uint8 public immutable oracleDecimals;
 
-    // bytes32 public constant DAO = keccak256("DAO");
-    bytes32 public constant OPERATOR = keccak256("OPERATOR");
-
-    IERC20 public USDB;
-    IERC20 public WETH;
-    uint8 public decimalsUSDB;
-    IERC20 public BLP;
-    // address public  BLP_STAKING;
-
-    IChainlinkOracle public oracle;
-    uint8 public oracleDecimals;
-
-    address public stakingContract;
+    /* ========== STORAGE VARIABLES =========== */
+    // Always add to the bottom! Contract is upgradeable
 
     address public signer;
-    address public admin;
+    address public operator;
 
     mapping(address => PlacedToken) public placedTokens;
     mapping(UserTiers => uint256) public minAmountForTier;
@@ -46,24 +41,20 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
 
     /* ========== CONSTRUCTOR ========== */
 
-    function initialize(
-        address blp,
-        address _stakingContract,
-        address _oracle,
-        address _admin,
-        address _signer,
-        address usdb,
-        address weth
-    ) public initializer {
-        BLP = IERC20(blp);
-        USDB = IERC20(usdb);
-        WETH = IERC20(weth);
-
-        signer = _signer;
-        stakingContract = _stakingContract;
+    constructor(address _weth, address _usdb, address _oracle, address _yieldStaking) {
+        WETH = IERC20(_weth);
+        USDB = IERC20(_usdb);
+        decimalsUSDB = IERC20Metadata(address(USDB)).decimals();
         oracle = IChainlinkOracle(_oracle);
         oracleDecimals = oracle.decimals();
-        decimalsUSDB = IERC20Metadata(address(USDB)).decimals();
+        yieldStaking = _yieldStaking;
+
+        _disableInitializers();
+    }
+
+    function initialize(address _owner, address _signer, address _operator) public initializer {
+        signer = _signer;
+        operator = _operator;
 
         minAmountForTier[UserTiers.BRONZE] = 2_000;
         minAmountForTier[UserTiers.SILVER] = 5_000;
@@ -79,9 +70,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         weightForTier[UserTiers.PLATINUM] = 30;
         weightForTier[UserTiers.DIAMOND] = 60;
 
-        admin = _admin;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(OPERATOR, admin);
+        __Ownable_init(_owner);
     }
 
     /* ========== VIEWS ========== */
@@ -130,6 +119,11 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
             ) - claimedAmount;
     }
 
+    modifier onlyOperator() {
+        require(msg.sender == operator, "BlastUP: caller is not the operator");
+        _;
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
 
     function _convertETHToUSDB(uint256 volume) private view returns (uint256) {
@@ -166,7 +160,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         address token,
         uint256 tokensAmount
     ) internal {
-        if (msg.sender != stakingContract) {
+        if (msg.sender != yieldStaking) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
             require(userAllowedAllocation(token, receiver) >= tokensAmount, "BlastUP: You have not enough allocation");
 
@@ -189,30 +183,15 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
 
     /* ========== FUNCTIONS ========== */
 
-    function setSigner(address _signer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setSigner(address _signer) external onlyOwner {
         signer = _signer;
     }
 
-    function grantOperatorRole(address _operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        grantRole(OPERATOR, _operator);
+    function setOperator(address _operator) external onlyOwner {
+        operator = _operator;
     }
 
-    function revokeOperatorRole(address _operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        revokeRole(OPERATOR, _operator);
-    }
-
-    function checkOperator(address _operator) external view returns (bool) {
-        return hasRole(OPERATOR, _operator);
-    }
-
-    function transferAdminRole(address _admin) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        grantRole(OPERATOR, _admin);
-        revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        revokeRole(OPERATOR, msg.sender);
-    }
-
-    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyRole(OPERATOR) {
+    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOperator {
         require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");
         require(
             _vestingStartTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _vestingStartTimestamp,
@@ -221,7 +200,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         placedTokens[token].vestingStartTimestamp = _vestingStartTimestamp;
     }
 
-    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyRole(OPERATOR) {
+    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOperator {
         require(placedTokens[token].tgeTimestamp > block.timestamp, "BlastUP: tge already started");
         require(
             _tgeTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _tgeTimestamp,
@@ -230,7 +209,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         placedTokens[token].tgeTimestamp = _tgeTimestamp;
     }
 
-    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyRole(OPERATOR) {
+    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOperator {
         minAmountForTier[UserTiers.BRONZE] = amounts[0];
         minAmountForTier[UserTiers.SILVER] = amounts[1];
         minAmountForTier[UserTiers.GOLD] = amounts[2];
@@ -239,7 +218,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         minAmountForTier[UserTiers.DIAMOND] = amounts[5];
     }
 
-    function setWeightsForTiers(uint256[6] memory tiers) external onlyRole(OPERATOR) {
+    function setWeightsForTiers(uint256[6] memory tiers) external onlyOperator {
         require(
             tiers[0] + tiers[1] + tiers[2] == 100 && tiers[3] + tiers[4] + tiers[5] == 100, "BlastUP: invalid weights"
         );
@@ -251,7 +230,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         weightForTier[UserTiers.DIAMOND] = tiers[5];
     }
 
-    function placeTokens(PlaceTokensInput memory input) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function placeTokens(PlaceTokensInput memory input) external onlyOwner {
         PlacedToken storage placedToken = placedTokens[input.token];
 
         require(placedToken.status == SaleStatus.NOT_PLACED, "BlastUP: This token was already placed");
@@ -312,7 +291,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         emit UserRegistered(msg.sender, token, tier);
     }
 
-    function endRegistration(address token) external onlyRole(OPERATOR) {
+    function endRegistration(address token) external onlyOperator {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(placedToken.status == SaleStatus.REGISTRATION, "BlastUP: invalid status");
@@ -322,7 +301,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         emit RegistrationEnded(token);
     }
 
-    function startPublicSale(address token, uint256 endTimeOfTheRound) external onlyRole(OPERATOR) {
+    function startPublicSale(address token, uint256 endTimeOfTheRound) external onlyOperator {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(placedToken.status == SaleStatus.POST_REGISTRATION, "BlastUp: invalid status");
@@ -337,7 +316,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         emit PublicSaleStarted(token);
     }
 
-    function startFCFSSale(address token, uint256 endTimeOfTheRound) external onlyRole(OPERATOR) {
+    function startFCFSSale(address token, uint256 endTimeOfTheRound) external onlyOperator {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(
@@ -433,7 +412,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         emit TokensBought(token, receiver, quantity);
     }
 
-    function endSale(address token) external onlyRole(OPERATOR) {
+    function endSale(address token) external onlyOperator {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(
@@ -449,7 +428,7 @@ contract Launchpad is AccessControlUpgradeable, ILaunchpad {
         placedToken.volumeForLowTiers = 0;
         placedToken.volumeForYieldStakers = 0;
         // transfer remaining tokens to the DAO address
-        IERC20(token).safeTransfer(admin, volume);
+        IERC20(token).safeTransfer(owner(), volume);
 
         emit SaleEnded(token);
     }

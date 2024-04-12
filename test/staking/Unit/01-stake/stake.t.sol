@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseStakingTest, Staking, WadMath} from "../../BaseStaking.t.sol";
+import {BaseStakingTest, YieldStaking, WadMath} from "../../BaseStaking.t.sol";
 
 contract StakeTest is BaseStakingTest {
     using WadMath for uint256;
@@ -11,7 +11,7 @@ contract StakeTest is BaseStakingTest {
 
         testToken.mint(user, 100 * 10 ** 19);
         testToken.approve(address(staking), type(uint256).max);
-        vm.expectRevert(abi.encodeWithSelector(Staking.InvalidPool.selector, address(testToken)));
+        vm.expectRevert(abi.encodeWithSelector(YieldStaking.InvalidPool.selector, address(testToken)));
 
         staking.stake(address(testToken), 10e18);
         vm.stopPrank();
@@ -26,7 +26,7 @@ contract StakeTest is BaseStakingTest {
         USDB.approve(address(staking), type(uint256).max);
 
         vm.expectEmit(true, true, true, true, address(staking));
-        emit Staking.Staked(address(USDB), user, amount);
+        emit YieldStaking.Staked(address(USDB), user, amount);
 
         staking.stake(address(USDB), amount);
 
@@ -45,11 +45,11 @@ contract StakeTest is BaseStakingTest {
         USDB.approve(address(staking), type(uint256).max);
 
         vm.expectEmit(true, true, true, true, address(staking));
-        emit Staking.Staked(address(USDB), user, amount);
+        emit YieldStaking.Staked(address(USDB), user, amount);
 
         staking.stake(address(USDB), amount);
 
-        Staking.StakingUser memory userInfo = staking.userInfo(address(USDB), user);
+        YieldStaking.StakingUser memory userInfo = staking.userInfo(address(USDB), user);
 
         assertEq(userInfo.lockedBalance + userInfo.remainders, amount);
         assertEq(block.timestamp, userInfo.timestampToWithdraw);
@@ -62,7 +62,7 @@ contract StakeTest is BaseStakingTest {
         USDB.approve(address(staking), type(uint256).max);
 
         vm.expectEmit(true, true, true, true, address(staking));
-        emit Staking.Staked(address(USDB), user2, amount2);
+        emit YieldStaking.Staked(address(USDB), user2, amount2);
 
         staking.stake(address(USDB), amount2);
 
@@ -83,7 +83,7 @@ contract StakeTest is BaseStakingTest {
         WETH.approve(address(staking), type(uint256).max);
 
         vm.expectEmit(true, true, true, true, address(staking));
-        emit Staking.Staked(address(WETH), user, amount);
+        emit YieldStaking.Staked(address(WETH), user, amount);
 
         staking.stake(address(WETH), amount);
 

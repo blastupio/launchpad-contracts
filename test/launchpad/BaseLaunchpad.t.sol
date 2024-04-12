@@ -3,7 +3,7 @@ pragma solidity ^0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {Staking} from "../../src/YieldStaking.sol";
+import {YieldStaking} from "../../src/YieldStaking.sol";
 import {Launchpad, MessageHashUtils, ECDSA} from "../../src/Launchpad.sol";
 import {ILaunchpad} from "../../src/interfaces/ILaunchpad.sol";
 
@@ -18,7 +18,7 @@ import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract BaseLaunchpadTest is Test {
-    Staking staking;
+    YieldStaking staking;
     Launchpad launchpad;
 
     ERC20Mock blp;
@@ -63,37 +63,30 @@ contract BaseLaunchpadTest is Test {
         oracle = new OracleMock();
 
         uint256 nonce = vm.getNonce(admin);
-        address launchpadAddress = vm.computeCreateAddress(admin, nonce + 1);
         address stakingAddress = vm.computeCreateAddress(admin, nonce + 3);
         vm.startPrank(admin);
         launchpad = Launchpad(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new Launchpad()),
+                    address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
                     admin,
-                    abi.encodeCall(
-                        Launchpad.initialize,
-                        (address(blp), stakingAddress, address(oracle), admin, admin, address(USDB), address(WETH))
-                    )
+                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin))
                 )
             )
         );
-        staking = Staking(
+        staking = YieldStaking(
             payable(
                 address(
                     new TransparentUpgradeableProxy(
-                        address(new Staking()),
+                        address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
                         admin,
-                        abi.encodeCall(
-                            Staking.initialize,
-                            (launchpadAddress, address(blp), admin, address(oracle), address(USDB), address(WETH))
-                        )
+                        abi.encodeCall(YieldStaking.initialize, (admin))
                     )
                 )
             )
         );
-        assert(address(staking) == launchpad.stakingContract());
-        assert(address(launchpad) == address(staking.launchpadAddress()));
+        assert(address(staking) == launchpad.yieldStaking());
+        assert(address(launchpad) == address(staking.launchpad()));
         vm.stopPrank();
     }
 }

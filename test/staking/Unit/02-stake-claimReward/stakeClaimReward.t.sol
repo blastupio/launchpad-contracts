@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseStakingTest, Staking} from "../../BaseStaking.t.sol";
+import {BaseStakingTest, YieldStaking} from "../../BaseStaking.t.sol";
 
 contract StakeClaimRewardTest is BaseStakingTest {
     modifier stakeUSDB() {
@@ -50,7 +50,7 @@ contract StakeClaimRewardTest is BaseStakingTest {
         (uint256 balance, uint256 claimableAmount) = staking.balanceAndRewards(targetToken, user);
 
         vm.expectEmit(true, true, true, true, address(staking));
-        emit Staking.RewardClaimed(targetToken, user, targetToken, claimableAmount);
+        emit YieldStaking.RewardClaimed(targetToken, user, targetToken, claimableAmount);
 
         staking.claimReward(targetToken, targetToken, claimableAmount, false);
 
@@ -61,7 +61,7 @@ contract StakeClaimRewardTest is BaseStakingTest {
         (balance, claimableAmount) = staking.balanceAndRewards(targetToken, user2);
 
         vm.expectEmit(true, true, true, true, address(staking));
-        emit Staking.RewardClaimed(targetToken, user2, targetToken, claimableAmount);
+        emit YieldStaking.RewardClaimed(targetToken, user2, targetToken, claimableAmount);
 
         staking.claimReward(targetToken, targetToken, claimableAmount, false);
 

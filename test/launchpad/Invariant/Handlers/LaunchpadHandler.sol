@@ -91,7 +91,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
-        vm.startPrank(launchpad.admin());
+        vm.startPrank(launchpad.owner());
         bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
@@ -149,8 +149,8 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             tgePercent: uint8(tgePercent)
         });
 
-        vm.startPrank(launchpad.admin());
-        ERC20Mock(currentToken).mint(launchpad.admin(), initialVolume);
+        vm.startPrank(launchpad.owner());
+        ERC20Mock(currentToken).mint(launchpad.owner(), initialVolume);
         ERC20Mock(currentToken).approve(address(launchpad), initialVolume + 1);
         launchpad.placeTokens(input);
         vm.stopPrank();
@@ -162,7 +162,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
         forEachActor(currentToken, this.registerUser);
 
-        vm.startPrank(launchpad.admin());
+        vm.startPrank(launchpad.owner());
         launchpad.endRegistration(currentToken);
         launchpad.startPublicSale(currentToken, block.timestamp + 100);
         vm.stopPrank();
@@ -228,7 +228,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
         endTimeOfTheRound = bound(endTimeOfTheRound, placedToken.currentStateEnd + 20, 1e60);
         vm.warp(placedToken.currentStateEnd);
-        vm.startPrank(launchpad.admin());
+        vm.startPrank(launchpad.owner());
         launchpad.startFCFSSale(currentToken, endTimeOfTheRound);
         vm.stopPrank();
     }
@@ -239,7 +239,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
         receiver = receiver == address(0) ? address(uint160(tokenSeed % 1e40) * 10 / 7 + 2) : receiver;
 
-        vm.startPrank(launchpad.admin());
+        vm.startPrank(launchpad.owner());
         uint256 _timestamp =
             block.timestamp > placedToken.currentStateEnd ? block.timestamp : placedToken.currentStateEnd;
         launchpad.setTgeTimestamp(currentToken, _timestamp + 1);

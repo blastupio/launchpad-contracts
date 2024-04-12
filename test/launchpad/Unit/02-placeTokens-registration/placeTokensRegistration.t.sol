@@ -236,12 +236,9 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         vm.expectRevert();
         launchpad.endRegistration(address(testToken));
 
-        vm.expectRevert();
-        launchpad.grantOperatorRole(user);
-
         vm.stopPrank();
         vm.prank(admin);
-        launchpad.grantOperatorRole(user);
+        launchpad.setOperator(user);
 
         vm.prank(user);
         launchpad.endRegistration(address(testToken));

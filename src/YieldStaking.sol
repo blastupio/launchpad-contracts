@@ -13,27 +13,25 @@ import {IWETH} from "./interfaces/IWETH.sol";
 import {WadMath} from "./libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract Staking is OwnableUpgradeable {
+contract YieldStaking is OwnableUpgradeable {
     using WadMath for uint256;
     using SafeERC20 for IERC20Rebasing;
 
     error InvalidPool(address token);
 
-    /* ========== STATE VARIABLES ========== */
+    /* ========== IMMUTABLE VARIABLES ========== */
+    ILaunchpad public immutable launchpad;
+    IERC20Rebasing public immutable USDB;
+    IERC20Rebasing public immutable WETH;
+    uint8 public immutable decimalsUSDB;
+    IChainlinkOracle public immutable oracle;
+    uint8 public immutable oracleDecimals;
 
-    ILaunchpad public launchpadAddress;
-
-    IERC20Rebasing public USDB;
-    IERC20Rebasing public WETH;
-    uint8 public decimalsUSDB;
-
-    IChainlinkOracle public oracle;
-    uint8 public oracleDecimals;
+    /* ========== STORAGE VARIABLES ========== */
+    // Always add to the bottom! Contract is upgradeable
 
     uint256 public minUSDBStakeValue; // in USDB
     uint256 public minTimeToWithdraw;
-
-    IERC20 public BLP;
 
     // Invariant: lockedBalance <= balanceScaled * lastIndex
     struct StakingUser {
@@ -53,30 +51,25 @@ contract Staking is OwnableUpgradeable {
 
     /* ========== CONSTRUCTOR ========== */
 
-    function initialize(
-        address _launchpadAddress,
-        address blp,
-        address admin,
-        address _oracle,
-        address usdb,
-        address weth
-    ) public initializer {
-        launchpadAddress = ILaunchpad(_launchpadAddress);
-        BLP = IERC20(blp);
+    constructor(address _launchpad, address _oracle, address usdb, address weth) {
+        launchpad = ILaunchpad(_launchpad);
         USDB = IERC20Rebasing(usdb);
         WETH = IERC20Rebasing(weth);
-
+        decimalsUSDB = IERC20Metadata(usdb).decimals();
         oracle = IChainlinkOracle(_oracle);
         oracleDecimals = oracle.decimals();
-        decimalsUSDB = IERC20Metadata(address(USDB)).decimals();
 
+        _disableInitializers();
+    }
+
+    function initialize(address _owner) public initializer {
         USDB.configure(YieldMode.CLAIMABLE);
         WETH.configure(YieldMode.CLAIMABLE);
         // initialize pools
         stakingInfos[address(USDB)].lastIndex = WadMath.WAD;
         stakingInfos[address(WETH)].lastIndex = WadMath.WAD;
 
-        __Ownable_init(admin);
+        __Ownable_init(_owner);
     }
 
     /* ========== VIEWS ========== */
@@ -152,9 +145,8 @@ contract Staking is OwnableUpgradeable {
     }
 
     function _convertETHToUSDB(uint256 volume) internal view returns (uint256) {
-        // price * volume * real_usdb_decimals / (eth_decimals * oracle_decimals)
         (, int256 ans,,,) = oracle.latestRoundData();
-        return uint256(ans) * volume * (10 ** decimalsUSDB) / 10 ** oracleDecimals / 10 ** 18;
+        return uint256(ans) * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
     }
 
     function _convertToUSDB(uint256 volume, address token) internal view returns (uint256) {
@@ -203,10 +195,10 @@ contract Staking is OwnableUpgradeable {
             _convertToUSDB(totalUserBalance, depositToken) >= minUSDBStakeValue, "BlastUp: you must send more to stake"
         );
 
-        if (msg.value == 0) {
-            IERC20Rebasing(depositToken).safeTransferFrom(msg.sender, address(this), amount);
-        } else {
+        if (msg.value > 0) {
             _wrapETH();
+        } else {
+            IERC20Rebasing(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         }
 
         emit Staked(depositToken, msg.sender, amount);
@@ -238,10 +230,10 @@ contract Staking is OwnableUpgradeable {
             // just send yield
         } else {
             // check allowance
-            if (IERC20Rebasing(targetToken).allowance(address(this), address(launchpadAddress)) < rewardAmount) {
-                IERC20Rebasing(targetToken).forceApprove(address(launchpadAddress), type(uint256).max);
+            if (IERC20Rebasing(targetToken).allowance(address(this), address(launchpad)) < rewardAmount) {
+                IERC20Rebasing(targetToken).forceApprove(address(launchpad), type(uint256).max);
             }
-            launchpadAddress.buyTokens(rewardToken, targetToken, rewardAmount, msg.sender);
+            launchpad.buyTokens(rewardToken, targetToken, rewardAmount, msg.sender);
         }
 
         emit RewardClaimed(targetToken, msg.sender, rewardToken, rewardAmount);
