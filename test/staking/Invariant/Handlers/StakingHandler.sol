@@ -52,10 +52,6 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
     function _stake(uint256 amount, bool WETHOrUSDB, address actor) internal {
         address depositToken = WETHOrUSDB ? usdb : weth;
 
-        if (staking.lastIndex(depositToken) > 1e28) {
-            return;
-        }
-
         uint256 increaseStakedAmount = ERC20RebasingMock(depositToken).getClaimableAmount(address(staking)) + amount;
         ghost_stakedSums[depositToken] += increaseStakedAmount;
 
@@ -77,6 +73,8 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
             minAmountToStake = (minAmountToStake + 1000) / 100;
         }
 
+        vm.assume(staking.lastIndex(depositToken) < 1e28);
+
         uint256 _lastIndex = staking.lastIndex(depositToken);
         uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
         console.log("_amount", _amount);
@@ -97,9 +95,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         countCall("withdraw")
     {
         address targetToken = WETHOrUSDB ? usdb : weth;
-        if (staking.lastIndex(targetToken) > 1e28) {
-            return;
-        }
+        vm.assume(staking.lastIndex(targetToken) < 1e28);
 
         (uint256 balanceOfUser,) = staking.balanceAndRewards(targetToken, currentActor);
 
@@ -140,9 +136,8 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         address targetToken = WETHOrUSDB ? usdb : weth;
         address rewardToken = targetToken;
 
-        if (staking.lastIndex(targetToken) > 1e28) {
-            return;
-        }
+        vm.assume(staking.lastIndex(targetToken) < 1e28);
+
         Staking.StakingUser memory userInfo = staking.userInfo(targetToken, currentActor);
         console.log("user: ", userInfo.balanceScaled, userInfo.amountDeposited, userInfo.remainders);
         (, uint256 rewardOfUser) = staking.balanceAndRewards(targetToken, currentActor);

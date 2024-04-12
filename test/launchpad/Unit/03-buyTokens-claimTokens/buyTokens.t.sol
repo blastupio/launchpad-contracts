@@ -451,9 +451,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
         // endSale
 
         vm.startPrank(admin);
-        launchpad.endSale(address(testToken), admin);
+        launchpad.endSale(address(testToken));
         vm.expectRevert("BlastUp: invalid status");
-        launchpad.endSale(address(testToken), admin);
+        launchpad.endSale(address(testToken));
 
         assertEq(launchpad.getClaimableAmount(address(testToken), user), 0);
 

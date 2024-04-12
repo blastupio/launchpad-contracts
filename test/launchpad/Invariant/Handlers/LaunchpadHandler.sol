@@ -70,10 +70,11 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
     modifier useToken(uint256 tokenIndexSeed) {
         currentToken = _tokens.randToken(tokenIndexSeed);
-        if (currentToken == address(0)) {
-            currentToken = address(new ERC20Mock("Token", "TKN", 18));
-            _tokens.add(currentToken);
-        }
+        vm.assume(currentToken != address(0));
+        // if (currentToken == address(0)) {
+        //     currentToken = address(new ERC20Mock("Token", "TKNN", 18));
+        //     _tokens.add(currentToken);
+        // }
         _;
     }
 
@@ -90,7 +91,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
-        vm.startPrank(launchpad.owner());
+        vm.startPrank(launchpad.admin());
         bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
@@ -147,8 +148,8 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             tgePercent: uint8(tgePercent)
         });
 
-        vm.startPrank(launchpad.owner());
-        ERC20Mock(currentToken).mint(launchpad.owner(), initialVolume);
+        vm.startPrank(launchpad.admin());
+        ERC20Mock(currentToken).mint(launchpad.admin(), initialVolume);
         ERC20Mock(currentToken).approve(address(launchpad), initialVolume + 1);
         launchpad.placeTokens(input);
         vm.stopPrank();
@@ -160,7 +161,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
         forEachActor(currentToken, this.registerUser);
 
-        vm.startPrank(launchpad.owner());
+        vm.startPrank(launchpad.admin());
         launchpad.endRegistration(currentToken);
         launchpad.startPublicSale(currentToken, block.timestamp + 100);
         vm.stopPrank();
@@ -175,22 +176,14 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         countCall("buyTokens")
     {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        if (
-            placedToken.status != ILaunchpad.SaleStatus.PUBLIC_SALE
-                && placedToken.status != ILaunchpad.SaleStatus.FCFS_SALE
-        ) {
-            return;
-        }
-        if (placedToken.currentStateEnd < block.timestamp) {
-            return;
-        }
+
+        vm.assume(placedToken.status == ILaunchpad.SaleStatus.PUBLIC_SALE || placedToken.status == ILaunchpad.SaleStatus.FCFS_SALE);
+        vm.assume(placedToken.currentStateEnd >= block.timestamp);
+
         address paymentContract = WETHOrUSDB ? usdb : weth;
-
         uint256 allowedAllocation = launchpad.userAllowedAllocation(currentToken, currentActor);
+        vm.assume(allowedAllocation > 0);
 
-        if (allowedAllocation == 0) {
-            return;
-        }
         uint256 maxTokensAmount = allowedAllocation * placedToken.price > 1e50
             ? allowedAllocation / 1e10
             : allowedAllocation;
@@ -228,34 +221,28 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         countCall("startFCFSSale")
     {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-
-        if (placedToken.status != ILaunchpad.SaleStatus.PUBLIC_SALE) {
-            return;
-        }
+        vm.assume(placedToken.status == ILaunchpad.SaleStatus.PUBLIC_SALE);
 
         endTimeOfTheRound = bound(endTimeOfTheRound, placedToken.currentStateEnd + 20, 1e60);
         vm.warp(placedToken.currentStateEnd);
-        vm.startPrank(launchpad.owner());
+        vm.startPrank(launchpad.admin());
         launchpad.startFCFSSale(currentToken, endTimeOfTheRound);
         vm.stopPrank();
     }
 
     function endSale(uint256 tokenSeed, address receiver) public useToken(tokenSeed) countCall("endSale") {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-
-        if (placedToken.status != ILaunchpad.SaleStatus.FCFS_SALE) {
-            return;
-        }
+        vm.assume(placedToken.status == ILaunchpad.SaleStatus.FCFS_SALE);
 
         receiver = receiver == address(0) ? address(uint160(tokenSeed % 1e40) * 10 / 7 + 2) : receiver; 
 
-        vm.startPrank(launchpad.owner());
+        vm.startPrank(launchpad.admin());
         uint256 _timestamp =
             block.timestamp > placedToken.currentStateEnd ? block.timestamp : placedToken.currentStateEnd;
         launchpad.setTgeTimestamp(currentToken, _timestamp + 1);
         launchpad.setVestingStartTimestamp(currentToken, _timestamp + 16);
         vm.warp(_timestamp + 1);
-        launchpad.endSale(currentToken, receiver);
+        launchpad.endSale(currentToken);
         vm.stopPrank();
     }
 
@@ -266,15 +253,10 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         countCall("claimTokens")
     {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        if (placedToken.status != ILaunchpad.SaleStatus.POST_SALE) {
-            return;
-        }
+        vm.assume(placedToken.status == ILaunchpad.SaleStatus.POST_SALE);
 
         uint256 claimableAmount = launchpad.getClaimableAmount(currentToken, currentActor);
-
-        if (claimableAmount == 0) {
-            return;
-        }
+        vm.assume(claimableAmount > 0);
 
         ghost_placedToken[currentToken].claimedAmount += claimableAmount;
 

@@ -101,9 +101,7 @@ contract Staking is Ownable {
     {
         StakingUser memory user = stakingInfos[targetToken].users[account];
         balance = user.amountDeposited + user.remainders;
-        rewards = user.balanceScaled.wadMul(lastIndex(targetToken)) > user.amountDeposited
-            ? user.balanceScaled.wadMul(lastIndex(targetToken)) - user.amountDeposited
-            : 0;
+        rewards = _calculateUserRewards(lastIndex(targetToken), user.amountDeposited, user.balanceScaled); 
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -131,10 +129,16 @@ contract Staking is Ownable {
 
     // Decreases user scaled balance, funds lost due to rounding are added to remainders
     function _decreaseBalance(StakingInfo storage info, StakingUser storage user, uint256 amount) internal {
-        uint256 scaledBalanceDecrease = Math.min(amount.wadDivRoundingUp(info.lastIndex), user.balanceScaled);
+        uint256 scaledBalanceDecrease = amount.wadDivRoundingUp(info.lastIndex);
         info.totalSupplyScaled -= scaledBalanceDecrease;
         user.balanceScaled -= scaledBalanceDecrease;
-        user.remainders += scaledBalanceDecrease.wadMul(info.lastIndex) < amount ? 0 : scaledBalanceDecrease.wadMul(info.lastIndex) - amount;
+        user.remainders += scaledBalanceDecrease.wadMul(info.lastIndex) - amount;
+    }
+
+    function _calculateUserRewards(uint256 index, uint256 amountDeposited, uint256 balanceScaled) internal pure returns (uint256) {
+        uint256 depositedScaled = amountDeposited.wadDivRoundingUp(index);
+        uint256 scaledRewards = depositedScaled > balanceScaled ? 0 :balanceScaled - depositedScaled;
+        return scaledRewards.wadMul(index);
     }
 
     function _convertETHToUSDB(uint256 volume) internal view returns (uint256) {
@@ -208,7 +212,7 @@ contract Staking is Ownable {
 
         _updateLastIndex(info, targetToken);
 
-        uint256 totalRewards = user.balanceScaled.wadMul(info.lastIndex) - user.amountDeposited;
+        uint256 totalRewards = _calculateUserRewards(info.lastIndex, user.amountDeposited, user.balanceScaled);
         require(totalRewards >= rewardAmount, "BlastUP: you do not have enough rewards");
 
         _decreaseBalance(info, user, rewardAmount);

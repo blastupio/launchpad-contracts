@@ -10,8 +10,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract Launchpad is Ownable, ILaunchpad {
+contract Launchpad is AccessControl, ILaunchpad {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -20,6 +21,9 @@ contract Launchpad is Ownable, ILaunchpad {
     error InvalidSaleStatus(address token);
 
     /* ========== STATE VARIABLES ========== */
+
+    // bytes32 public constant DAO = keccak256("DAO");
+    bytes32 public constant OPERATOR = keccak256("OPERATOR");
 
     IERC20 public immutable USDB;
     IERC20 public immutable WETH;
@@ -33,6 +37,7 @@ contract Launchpad is Ownable, ILaunchpad {
     address public immutable stakingContract;
 
     address public signer;
+    address public admin;
 
     mapping(address => PlacedToken) public placedTokens;
     mapping(UserTiers => uint256) public minAmountForTier;
@@ -45,11 +50,11 @@ contract Launchpad is Ownable, ILaunchpad {
         address blp,
         address _stakingContract,
         address _oracle,
-        address admin,
+        address _admin,
         address _signer,
         address usdb,
         address weth
-    ) Ownable(admin) {
+    ) {
         BLP = IERC20(blp);
         USDB = IERC20(usdb);
         WETH = IERC20(weth);
@@ -73,6 +78,10 @@ contract Launchpad is Ownable, ILaunchpad {
         weightForTier[UserTiers.TITANIUM] = 10;
         weightForTier[UserTiers.PLATINUM] = 30;
         weightForTier[UserTiers.DIAMOND] = 60;
+
+        admin = _admin;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(OPERATOR, admin);
     }
 
     /* ========== VIEWS ========== */
@@ -180,11 +189,30 @@ contract Launchpad is Ownable, ILaunchpad {
 
     /* ========== FUNCTIONS ========== */
 
-    function setSigner(address _signer) external onlyOwner {
+    function setSigner(address _signer) external onlyRole(DEFAULT_ADMIN_ROLE) {
         signer = _signer;
     }
 
-    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOwner {
+    function grantOperatorRole(address _operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        grantRole(OPERATOR, _operator);
+    } 
+
+    function revokeOperatorRole(address _operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        revokeRole(OPERATOR, _operator);
+    }
+
+    function checkOperator(address _operator) external view returns(bool) {
+        return hasRole(OPERATOR, _operator);
+    }
+
+    function transferAdminRole(address _admin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        grantRole(OPERATOR, _admin);
+        revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        revokeRole(OPERATOR, msg.sender);
+    } 
+
+    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyRole(OPERATOR) {
         require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");
         require(
             _vestingStartTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _vestingStartTimestamp,
@@ -193,7 +221,7 @@ contract Launchpad is Ownable, ILaunchpad {
         placedTokens[token].vestingStartTimestamp = _vestingStartTimestamp;
     }
 
-    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOwner {
+    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyRole(OPERATOR) {
         require(placedTokens[token].tgeTimestamp > block.timestamp, "BlastUP: tge already started");
         require(
             _tgeTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _tgeTimestamp,
@@ -202,7 +230,7 @@ contract Launchpad is Ownable, ILaunchpad {
         placedTokens[token].tgeTimestamp = _tgeTimestamp;
     }
 
-    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOwner {
+    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyRole(OPERATOR) {
         minAmountForTier[UserTiers.BRONZE] = amounts[0];
         minAmountForTier[UserTiers.SILVER] = amounts[1];
         minAmountForTier[UserTiers.GOLD] = amounts[2];
@@ -211,7 +239,7 @@ contract Launchpad is Ownable, ILaunchpad {
         minAmountForTier[UserTiers.DIAMOND] = amounts[5];
     }
 
-    function setWeightsForTiers(uint256[6] memory tiers) external onlyOwner {
+    function setWeightsForTiers(uint256[6] memory tiers) external onlyRole(OPERATOR) {
         require(
             tiers[0] + tiers[1] + tiers[2] == 100 && tiers[3] + tiers[4] + tiers[5] == 100, "BlastUP: invalid weights"
         );
@@ -223,7 +251,7 @@ contract Launchpad is Ownable, ILaunchpad {
         weightForTier[UserTiers.DIAMOND] = tiers[5];
     }
 
-    function placeTokens(PlaceTokensInput memory input) external onlyOwner {
+    function placeTokens(PlaceTokensInput memory input) external onlyRole(DEFAULT_ADMIN_ROLE) {
         PlacedToken storage placedToken = placedTokens[input.token];
 
         require(placedToken.status == SaleStatus.NOT_PLACED, "BlastUP: This token was already placed");
@@ -284,7 +312,7 @@ contract Launchpad is Ownable, ILaunchpad {
         emit UserRegistered(msg.sender, token, tier);
     }
 
-    function endRegistration(address token) external onlyOwner {
+    function endRegistration(address token) external onlyRole(OPERATOR) {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(placedToken.status == SaleStatus.REGISTRATION, "BlastUP: invalid status");
@@ -294,7 +322,7 @@ contract Launchpad is Ownable, ILaunchpad {
         emit RegistrationEnded(token);
     }
 
-    function startPublicSale(address token, uint256 endTimeOfTheRound) external onlyOwner {
+    function startPublicSale(address token, uint256 endTimeOfTheRound) external onlyRole(OPERATOR) {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(placedToken.status == SaleStatus.POST_REGISTRATION, "BlastUp: invalid status");
@@ -309,7 +337,7 @@ contract Launchpad is Ownable, ILaunchpad {
         emit PublicSaleStarted(token);
     }
 
-    function startFCFSSale(address token, uint256 endTimeOfTheRound) external onlyOwner {
+    function startFCFSSale(address token, uint256 endTimeOfTheRound) external onlyRole(OPERATOR) {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(
@@ -405,7 +433,7 @@ contract Launchpad is Ownable, ILaunchpad {
         emit TokensBought(token, receiver, quantity);
     }
 
-    function endSale(address token, address receiver) external onlyOwner {
+    function endSale(address token) external onlyRole(OPERATOR) {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(
@@ -420,8 +448,8 @@ contract Launchpad is Ownable, ILaunchpad {
         placedToken.volumeForHighTiers = 0;
         placedToken.volumeForLowTiers = 0;
         placedToken.volumeForYieldStakers = 0;
-
-        IERC20(token).safeTransfer(receiver, volume);
+        // transfer remaining tokens to the DAO address
+        IERC20(token).safeTransfer(admin, volume);
 
         emit SaleEnded(token);
     }
