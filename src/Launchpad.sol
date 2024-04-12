@@ -10,9 +10,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
-contract Launchpad is AccessControl, ILaunchpad {
+contract Launchpad is AccessControlUpgradeable, ILaunchpad {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -25,16 +25,16 @@ contract Launchpad is AccessControl, ILaunchpad {
     // bytes32 public constant DAO = keccak256("DAO");
     bytes32 public constant OPERATOR = keccak256("OPERATOR");
 
-    IERC20 public immutable USDB;
-    IERC20 public immutable WETH;
-    uint8 public immutable decimalsUSDB;
-    IERC20 public immutable BLP;
-    // address public immutable BLP_STAKING;
+    IERC20 public USDB;
+    IERC20 public WETH;
+    uint8 public decimalsUSDB;
+    IERC20 public BLP;
+    // address public  BLP_STAKING;
 
-    IChainlinkOracle public immutable oracle;
-    uint8 public immutable oracleDecimals;
+    IChainlinkOracle public oracle;
+    uint8 public oracleDecimals;
 
-    address public immutable stakingContract;
+    address public stakingContract;
 
     address public signer;
     address public admin;
@@ -46,7 +46,7 @@ contract Launchpad is AccessControl, ILaunchpad {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(
+    function initialize(
         address blp,
         address _stakingContract,
         address _oracle,
@@ -54,7 +54,7 @@ contract Launchpad is AccessControl, ILaunchpad {
         address _signer,
         address usdb,
         address weth
-    ) {
+    ) public initializer {
         BLP = IERC20(blp);
         USDB = IERC20(usdb);
         WETH = IERC20(weth);
@@ -195,13 +195,13 @@ contract Launchpad is AccessControl, ILaunchpad {
 
     function grantOperatorRole(address _operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
         grantRole(OPERATOR, _operator);
-    } 
+    }
 
     function revokeOperatorRole(address _operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
         revokeRole(OPERATOR, _operator);
     }
 
-    function checkOperator(address _operator) external view returns(bool) {
+    function checkOperator(address _operator) external view returns (bool) {
         return hasRole(OPERATOR, _operator);
     }
 
@@ -210,7 +210,7 @@ contract Launchpad is AccessControl, ILaunchpad {
         grantRole(OPERATOR, _admin);
         revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
         revokeRole(OPERATOR, msg.sender);
-    } 
+    }
 
     function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyRole(OPERATOR) {
         require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");

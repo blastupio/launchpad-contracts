@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.25;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -13,7 +13,7 @@ import {IWETH} from "./interfaces/IWETH.sol";
 import {WadMath} from "./libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract Staking is Ownable {
+contract Staking is OwnableUpgradeable {
     using WadMath for uint256;
     using SafeERC20 for IERC20Rebasing;
 
@@ -23,9 +23,9 @@ contract Staking is Ownable {
 
     ILaunchpad public launchpadAddress;
 
-    IERC20Rebasing public immutable USDB;
-    IERC20Rebasing public immutable WETH;
-    uint8 public immutable decimalsUSDB;
+    IERC20Rebasing public USDB;
+    IERC20Rebasing public WETH;
+    uint8 public decimalsUSDB;
 
     IChainlinkOracle public oracle;
     uint8 public oracleDecimals;
@@ -33,7 +33,7 @@ contract Staking is Ownable {
     uint256 public minUSDBStakeValue; // in USDB
     uint256 public minTimeToWithdraw;
 
-    IERC20 public immutable BLP;
+    IERC20 public BLP;
 
     // Invariant: amountDeposited <= balanceScaled * lastIndex
     struct StakingUser {
@@ -53,9 +53,14 @@ contract Staking is Ownable {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _launchpadAddress, address blp, address admin, address _oracle, address usdb, address weth)
-        Ownable(admin)
-    {
+    function initialize(
+        address _launchpadAddress,
+        address blp,
+        address admin,
+        address _oracle,
+        address usdb,
+        address weth
+    ) public initializer {
         launchpadAddress = ILaunchpad(_launchpadAddress);
         BLP = IERC20(blp);
         USDB = IERC20Rebasing(usdb);
@@ -70,6 +75,8 @@ contract Staking is Ownable {
         // initialize pools
         stakingInfos[address(USDB)].lastIndex = WadMath.WAD;
         stakingInfos[address(WETH)].lastIndex = WadMath.WAD;
+
+        __Ownable_init(admin);
     }
 
     /* ========== VIEWS ========== */
@@ -101,7 +108,7 @@ contract Staking is Ownable {
     {
         StakingUser memory user = stakingInfos[targetToken].users[account];
         balance = user.amountDeposited + user.remainders;
-        rewards = _calculateUserRewards(lastIndex(targetToken), user.amountDeposited, user.balanceScaled); 
+        rewards = _calculateUserRewards(lastIndex(targetToken), user.amountDeposited, user.balanceScaled);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -135,9 +142,13 @@ contract Staking is Ownable {
         user.remainders += scaledBalanceDecrease.wadMul(info.lastIndex) - amount;
     }
 
-    function _calculateUserRewards(uint256 index, uint256 amountDeposited, uint256 balanceScaled) internal pure returns (uint256) {
+    function _calculateUserRewards(uint256 index, uint256 amountDeposited, uint256 balanceScaled)
+        internal
+        pure
+        returns (uint256)
+    {
         uint256 depositedScaled = amountDeposited.wadDivRoundingUp(index);
-        uint256 scaledRewards = depositedScaled > balanceScaled ? 0 :balanceScaled - depositedScaled;
+        uint256 scaledRewards = depositedScaled > balanceScaled ? 0 : balanceScaled - depositedScaled;
         return scaledRewards.wadMul(index);
     }
 
@@ -252,7 +263,7 @@ contract Staking is Ownable {
         uint256 amountFromRemainders = Math.min(user.remainders, amount);
         user.remainders -= amountFromRemainders;
         user.amountDeposited -= amount - amountFromRemainders;
-        
+
         _decreaseBalance(info, user, amount - amountFromRemainders);
 
         if (targetToken == address(WETH) && getETH) {

@@ -16,6 +16,7 @@ import {WETHRebasingMock} from "../../src/mocks/WETHRebasingMock.sol";
 import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
 
 import {WadMath} from "../../src/libraries/WadMath.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract BaseStakingTest is Test {
     Staking staking;
@@ -57,12 +58,37 @@ contract BaseStakingTest is Test {
         oracle = new OracleMock();
 
         uint256 nonce = vm.getNonce(admin);
-        address launchpadAddress = vm.computeCreateAddress(admin, nonce);
-        address stakingAddress = vm.computeCreateAddress(admin, nonce + 1);
+        address launchpadAddress = vm.computeCreateAddress(admin, nonce + 1);
+        address stakingAddress = vm.computeCreateAddress(admin, nonce + 3);
         vm.startPrank(admin);
-        launchpad =
-            new Launchpad(address(blp), stakingAddress, address(oracle), admin, admin, address(USDB), address(WETH));
-        staking = new Staking(launchpadAddress, address(blp), admin, address(oracle), address(USDB), address(WETH));
+        launchpad = Launchpad(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new Launchpad()),
+                    admin,
+                    abi.encodeCall(
+                        Launchpad.initialize,
+                        (address(blp), stakingAddress, address(oracle), admin, admin, address(USDB), address(WETH))
+                    )
+                )
+            )
+        );
+        staking = Staking(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(new Staking()),
+                        admin,
+                        abi.encodeCall(
+                            Staking.initialize,
+                            (launchpadAddress, address(blp), admin, address(oracle), address(USDB), address(WETH))
+                        )
+                    )
+                )
+            )
+        );
+        assert(address(staking) == launchpad.stakingContract());
+        assert(address(launchpad) == address(staking.launchpadAddress()));
         vm.stopPrank();
     }
 }

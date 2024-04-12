@@ -123,7 +123,8 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         uint256 volumeForHighTiers
     ) public createToken countCall("placeTokens") {
         initialVolume = bound(initialVolume, 1e24, 1e38);
-        addressForCollected = addressForCollected == address(0) ? address(uint160(initialVolume) * 2 / 3) : addressForCollected;
+        addressForCollected =
+            addressForCollected == address(0) ? address(uint160(initialVolume) * 2 / 3) : addressForCollected;
 
         price = bound(price, 1e5, 1e19);
         tgePercent = bound(tgePercent, 0, 100);
@@ -177,17 +178,19 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
 
-        vm.assume(placedToken.status == ILaunchpad.SaleStatus.PUBLIC_SALE || placedToken.status == ILaunchpad.SaleStatus.FCFS_SALE);
+        vm.assume(
+            placedToken.status == ILaunchpad.SaleStatus.PUBLIC_SALE
+                || placedToken.status == ILaunchpad.SaleStatus.FCFS_SALE
+        );
         vm.assume(placedToken.currentStateEnd >= block.timestamp);
 
         address paymentContract = WETHOrUSDB ? usdb : weth;
         uint256 allowedAllocation = launchpad.userAllowedAllocation(currentToken, currentActor);
         vm.assume(allowedAllocation > 0);
 
-        uint256 maxTokensAmount = allowedAllocation * placedToken.price > 1e50
-            ? allowedAllocation / 1e10
-            : allowedAllocation;
-        uint256 _decimals =  WETHOrUSDB ? 1e18 : 1e20;
+        uint256 maxTokensAmount =
+            allowedAllocation * placedToken.price > 1e50 ? allowedAllocation / 1e10 : allowedAllocation;
+        uint256 _decimals = WETHOrUSDB ? 1e18 : 1e20;
         if (_decimals / placedToken.price + 2 > maxTokensAmount) {
             return;
         }
@@ -234,7 +237,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
         vm.assume(placedToken.status == ILaunchpad.SaleStatus.FCFS_SALE);
 
-        receiver = receiver == address(0) ? address(uint160(tokenSeed % 1e40) * 10 / 7 + 2) : receiver; 
+        receiver = receiver == address(0) ? address(uint160(tokenSeed % 1e40) * 10 / 7 + 2) : receiver;
 
         vm.startPrank(launchpad.admin());
         uint256 _timestamp =
