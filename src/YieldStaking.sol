@@ -36,7 +36,7 @@ contract Staking is Ownable {
     IERC20 public immutable BLP;
 
     // Invariant: amountDeposited <= balanceScaled * lastIndex
-    struct User {
+    struct StakingUser {
         uint256 balanceScaled;
         uint256 amountDeposited;
         uint256 remainders;
@@ -46,7 +46,7 @@ contract Staking is Ownable {
     struct StakingInfo {
         uint256 totalSupplyScaled;
         uint256 lastIndex;
-        mapping(address => User) users;
+        mapping(address => StakingUser) users;
     }
 
     mapping(address => StakingInfo) public stakingInfos;
@@ -74,7 +74,7 @@ contract Staking is Ownable {
 
     /* ========== VIEWS ========== */
 
-    function userInfo(address targetToken, address user) external view returns (User memory) {
+    function userInfo(address targetToken, address user) external view returns (StakingUser memory) {
         return stakingInfos[targetToken].users[user];
     }
 
@@ -99,9 +99,11 @@ contract Staking is Ownable {
         view
         returns (uint256 balance, uint256 rewards)
     {
-        User memory user = stakingInfos[targetToken].users[account];
+        StakingUser memory user = stakingInfos[targetToken].users[account];
         balance = user.amountDeposited + user.remainders;
-        rewards = user.balanceScaled.wadMul(lastIndex(targetToken)) - user.amountDeposited;
+        rewards = user.balanceScaled.wadMul(lastIndex(targetToken)) > user.amountDeposited
+            ? user.balanceScaled.wadMul(lastIndex(targetToken)) - user.amountDeposited
+            : 0;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -128,11 +130,11 @@ contract Staking is Ownable {
     }
 
     // Decreases user scaled balance, funds lost due to rounding are added to remainders
-    function _decreaseBalance(StakingInfo storage info, User storage user, uint256 amount) internal {
-        uint256 scaledBalanceDecrease = amount.wadDivRoundingUp(info.lastIndex);
+    function _decreaseBalance(StakingInfo storage info, StakingUser storage user, uint256 amount) internal {
+        uint256 scaledBalanceDecrease = Math.min(amount.wadDivRoundingUp(info.lastIndex), user.balanceScaled);
         info.totalSupplyScaled -= scaledBalanceDecrease;
         user.balanceScaled -= scaledBalanceDecrease;
-        user.remainders += scaledBalanceDecrease.wadMul(info.lastIndex) - amount;
+        user.remainders += scaledBalanceDecrease.wadMul(info.lastIndex) < amount ? 0 : scaledBalanceDecrease.wadMul(info.lastIndex) - amount;
     }
 
     function _convertETHToUSDB(uint256 volume) internal view returns (uint256) {
@@ -165,7 +167,7 @@ contract Staking is Ownable {
         }
 
         StakingInfo storage info = stakingInfos[depositToken];
-        User storage user = info.users[msg.sender];
+        StakingUser storage user = info.users[msg.sender];
 
         if (info.lastIndex == 0) {
             revert InvalidPool(depositToken);
@@ -198,7 +200,7 @@ contract Staking is Ownable {
 
     function claimReward(address targetToken, address rewardToken, uint256 rewardAmount, bool getETH) external {
         StakingInfo storage info = stakingInfos[targetToken];
-        User storage user = info.users[msg.sender];
+        StakingUser storage user = info.users[msg.sender];
 
         if (info.lastIndex == 0) {
             revert InvalidPool(targetToken);
@@ -233,7 +235,7 @@ contract Staking is Ownable {
 
     function withdraw(address targetToken, uint256 amount, bool getETH) external {
         StakingInfo storage info = stakingInfos[targetToken];
-        User storage user = info.users[msg.sender];
+        StakingUser storage user = info.users[msg.sender];
 
         if (info.lastIndex == 0) {
             revert InvalidPool(targetToken);
@@ -243,11 +245,10 @@ contract Staking is Ownable {
         require(amount <= (user.amountDeposited + user.remainders), "BlastUP: you do not have enough balance");
 
         _updateLastIndex(info, targetToken);
-
         uint256 amountFromRemainders = Math.min(user.remainders, amount);
         user.remainders -= amountFromRemainders;
         user.amountDeposited -= amount - amountFromRemainders;
-
+        
         _decreaseBalance(info, user, amount - amountFromRemainders);
 
         if (targetToken == address(WETH) && getETH) {

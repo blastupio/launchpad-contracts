@@ -30,7 +30,7 @@ contract StakingInvariant is BaseStakingTest {
         assertGe(WETH.balanceOf(address(staking)), handler.ghost_stakedSums(address(WETH)));
     }
 
-    function invariant_callSummary() public view {
-        handler.callSummary();
-    }
+    // function invariant_callSummary() public view {
+    //     handler.callSummary();
+    // }
 }

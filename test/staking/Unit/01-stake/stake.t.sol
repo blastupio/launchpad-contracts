@@ -49,7 +49,7 @@ contract StakeTest is BaseStakingTest {
 
         staking.stake(address(USDB), amount);
 
-        Staking.User memory userInfo = staking.userInfo(address(USDB), user);
+        Staking.StakingUser memory userInfo = staking.userInfo(address(USDB), user);
 
         assertEq(userInfo.amountDeposited + userInfo.remainders, amount);
         assertEq(block.timestamp, userInfo.timestampToWithdraw);

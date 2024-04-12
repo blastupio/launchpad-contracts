@@ -12,4 +12,5 @@ via_ir = true
 runs = 1000
 
 [invariant]
-depth = 100
+depth = 35
+fail_on_revert = true

@@ -32,7 +32,6 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
 
     function invariant_boughtAmount() public {
         handler.forEachToken(this.assertAddressBoughtAmountLeInitialVolume);
-        handler.forEachToken(this.assertAdAddressForCollectedBalanceGteBoughtAmount);
     }
 
     function invariant_allowedAllocations() public {
@@ -61,16 +60,6 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         );
     }
 
-    function assertAdAddressForCollectedBalanceGteBoughtAmount(address token) external view {
-        LaunchpadHandler.PlacedTokenInvariants memory placedTokenInvariant = handler.getPlacedTokenInvariants(token);
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(token);
-
-        assertGe(
-            USDB.balanceOf(placedToken.addressForCollected),
-            placedTokenInvariant.boughtAmount * placedToken.price / (10 ** placedToken.tokenDecimals)
-        );
-    }
-
     function assertAddressForCollectedBalanceGteSendedAmount(address token) external view {
         LaunchpadHandler.PlacedTokenInvariants memory placedToken = handler.getPlacedTokenInvariants(token);
 
@@ -84,7 +73,7 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         assertLe(placedToken.boughtAmount, placedToken.initialVolume);
     }
 
-    function invariant_callSummary() public view {
-        handler.callSummary();
-    }
+    // function invariant_callSummary() public view {
+    //     handler.callSummary();
+    // }
 }

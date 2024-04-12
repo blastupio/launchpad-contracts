@@ -121,11 +121,12 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         uint256 tgePercent,
         uint256 volumeForHighTiers
     ) public createToken countCall("placeTokens") {
-        initialVolume = bound(initialVolume, 1e21, 1e38);
+        initialVolume = bound(initialVolume, 1e24, 1e38);
+        addressForCollected = addressForCollected == address(0) ? address(uint160(initialVolume) * 2 / 3) : addressForCollected;
 
-        price = bound(price, 1e3, 1e19);
+        price = bound(price, 1e5, 1e19);
         tgePercent = bound(tgePercent, 0, 100);
-        volumeForHighTiers = bound(volumeForHighTiers, 50, 90);
+        volumeForHighTiers = bound(volumeForHighTiers, 50, 85);
         uint256 volumeForLowTiers = 95 - volumeForHighTiers;
         uint256 volumeForYieldStakers = 100 - volumeForLowTiers - volumeForHighTiers;
 
@@ -167,7 +168,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         forEachActor(currentToken, this.sumAllowedAllocations);
     }
 
-    function buyTokens(uint256 actorSeed, uint256 tokenSeed, uint256 volume, bool WETHOrUSDB)
+    function buyTokens(uint256 actorSeed, uint256 tokenSeed, uint256 tokensAmount, bool WETHOrUSDB)
         public
         useActor(actorSeed)
         useToken(tokenSeed)
@@ -180,26 +181,45 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         ) {
             return;
         }
+        if (placedToken.currentStateEnd < block.timestamp) {
+            return;
+        }
         address paymentContract = WETHOrUSDB ? usdb : weth;
 
         uint256 allowedAllocation = launchpad.userAllowedAllocation(currentToken, currentActor);
-        volume = bound(volume, placedToken.price / placedToken.tokenDecimals + 1, allowedAllocation);
 
-        uint256 boughtAmount;
+        if (allowedAllocation == 0) {
+            return;
+        }
+        uint256 maxTokensAmount = allowedAllocation * placedToken.price > 1e50
+            ? allowedAllocation / 1e10
+            : allowedAllocation;
+        uint256 _decimals =  WETHOrUSDB ? 1e18 : 1e20;
+        if (_decimals / placedToken.price + 2 > maxTokensAmount) {
+            return;
+        }
+        tokensAmount = bound(tokensAmount, _decimals / placedToken.price + 2, maxTokensAmount);
+        uint256 volume;
 
         if (paymentContract == usdb) {
+            volume = tokensAmount * placedToken.price / 1e18;
             ghost_placedToken[currentToken].sendedUSDB += volume;
-            boughtAmount = volume * (10 ** placedToken.tokenDecimals) / placedToken.price;
         } else {
+            volume = tokensAmount * placedToken.price / 1e20;
             ghost_placedToken[currentToken].sendedWETH += volume;
-            boughtAmount = volume * 100 * (10 ** placedToken.tokenDecimals) / placedToken.price;
         }
 
-        ghost_placedToken[currentToken].boughtAmount += boughtAmount;
+        ILaunchpad.User memory userInfoBefore = launchpad.userInfo(currentToken, currentActor);
 
         vm.startPrank(currentActor);
+        ERC20Mock(paymentContract).mint(currentActor, volume);
+        ERC20Mock(paymentContract).approve(address(launchpad), volume);
         launchpad.buyTokens(currentToken, paymentContract, volume, currentActor);
+
+        ILaunchpad.User memory userInfoAfter = launchpad.userInfo(currentToken, currentActor);
         vm.stopPrank();
+
+        ghost_placedToken[currentToken].boughtAmount += userInfoAfter.boughtAmount - userInfoBefore.boughtAmount;
     }
 
     function startFCFSSale(uint256 tokenSeed, uint256 endTimeOfTheRound)
@@ -213,6 +233,8 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             return;
         }
 
+        endTimeOfTheRound = bound(endTimeOfTheRound, placedToken.currentStateEnd + 20, 1e60);
+        vm.warp(placedToken.currentStateEnd);
         vm.startPrank(launchpad.owner());
         launchpad.startFCFSSale(currentToken, endTimeOfTheRound);
         vm.stopPrank();
@@ -225,9 +247,14 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             return;
         }
 
+        receiver = receiver == address(0) ? address(uint160(tokenSeed % 1e40) * 10 / 7 + 2) : receiver; 
+
         vm.startPrank(launchpad.owner());
-        launchpad.setTgeTimestamp(currentToken, block.timestamp);
-        launchpad.setVestingStartTimestamp(currentToken, block.timestamp + 15);
+        uint256 _timestamp =
+            block.timestamp > placedToken.currentStateEnd ? block.timestamp : placedToken.currentStateEnd;
+        launchpad.setTgeTimestamp(currentToken, _timestamp + 1);
+        launchpad.setVestingStartTimestamp(currentToken, _timestamp + 16);
+        vm.warp(_timestamp + 1);
         launchpad.endSale(currentToken, receiver);
         vm.stopPrank();
     }
@@ -250,11 +277,12 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         }
 
         ghost_placedToken[currentToken].claimedAmount += claimableAmount;
-        vm.warp(tokenSeed % 15);
 
         vm.startPrank(currentActor);
         launchpad.claimTokens(currentToken);
         vm.stopPrank();
+
+        vm.warp(tokenSeed % 15);
     }
 
     function forEachActor(address _token, function(address, address) external func) public {

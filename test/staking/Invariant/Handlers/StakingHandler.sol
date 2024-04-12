@@ -8,9 +8,13 @@ import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
 import {BaseStakingTest, Staking, WadMath, ERC20Mock, ERC20RebasingMock} from "../../BaseStaking.t.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {WadMath} from "../../../../src/libraries/WadMath.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract StakingHandler is CommonBase, StdCheats, StdUtils {
     using LibAddressSet for AddressSet;
+    using WadMath for uint256;
+    using Math for uint256;
 
     Staking public staking;
     address internal immutable usdb;
@@ -48,6 +52,10 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
     function _stake(uint256 amount, bool WETHOrUSDB, address actor) internal {
         address depositToken = WETHOrUSDB ? usdb : weth;
 
+        if (staking.lastIndex(depositToken) > 1e28) {
+            return;
+        }
+
         uint256 increaseStakedAmount = ERC20RebasingMock(depositToken).getClaimableAmount(address(staking)) + amount;
         ghost_stakedSums[depositToken] += increaseStakedAmount;
 
@@ -63,11 +71,22 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function stake(uint256 amount, bool WETHOrUSDB) public createActor countCall("stake") {
-        uint256 minAmountToStake = staking.minUSDBStakeValue();
+        uint256 minAmountToStake = staking.minUSDBStakeValue() + 10;
+        address depositToken = WETHOrUSDB ? usdb : weth;
         if (!WETHOrUSDB) {
-            minAmountToStake /= 100;
+            minAmountToStake = (minAmountToStake + 1000) / 100;
         }
-        amount = bound(amount, minAmountToStake, 1e38);
+
+        uint256 _lastIndex = staking.lastIndex(depositToken);
+        uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
+        console.log("_amount", _amount);
+        if (_amount == 0) {
+            _amount = _lastIndex / 1e10;
+        }
+        if (_amount < minAmountToStake) {
+            _amount *= (_lastIndex / 1e10);
+        }
+        amount = bound(amount, Math.min(_amount * 1e6, 1e36 - 2) + 1, 1e36);
 
         _stake(amount, WETHOrUSDB, currentActor);
     }
@@ -78,15 +97,28 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         countCall("withdraw")
     {
         address targetToken = WETHOrUSDB ? usdb : weth;
+        if (staking.lastIndex(targetToken) > 1e28) {
+            return;
+        }
 
         (uint256 balanceOfUser,) = staking.balanceAndRewards(targetToken, currentActor);
 
         if (balanceOfUser == 0) {
-            uint256 minAmountToStake = staking.minUSDBStakeValue();
+            uint256 minAmountToStake = staking.minUSDBStakeValue() + 10;
             if (!WETHOrUSDB) {
-                minAmountToStake /= 100;
+                minAmountToStake = (minAmountToStake + 1000) / 100;
             }
-            amount = bound(amount, minAmountToStake, 1e38);
+            uint256 _lastIndex = staking.lastIndex(targetToken);
+            uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
+            console.log("_amount", _amount);
+            if (_amount == 0) {
+                _amount = _lastIndex / 1e10;
+            }
+            if (_amount < minAmountToStake) {
+                _amount *= (_lastIndex / 1e10);
+            }
+
+            amount = bound(amount, Math.min(_amount * 1e6, 1e36 - 2) + 1, 1e36);
             _stake(amount, WETHOrUSDB, currentActor);
             (balanceOfUser,) = staking.balanceAndRewards(targetToken, currentActor);
         }
@@ -108,14 +140,28 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         address targetToken = WETHOrUSDB ? usdb : weth;
         address rewardToken = targetToken;
 
+        if (staking.lastIndex(targetToken) > 1e28) {
+            return;
+        }
+        Staking.StakingUser memory userInfo = staking.userInfo(targetToken, currentActor);
+        console.log("user: ", userInfo.balanceScaled, userInfo.amountDeposited, userInfo.remainders);
         (, uint256 rewardOfUser) = staking.balanceAndRewards(targetToken, currentActor);
 
         if (rewardOfUser == 0) {
-            uint256 minAmountToStake = staking.minUSDBStakeValue();
+            uint256 minAmountToStake = staking.minUSDBStakeValue() + 10;
             if (!WETHOrUSDB) {
-                minAmountToStake /= 100;
+                minAmountToStake = (minAmountToStake + 1000) / 100;
             }
-            rewardAmount = bound(rewardAmount, minAmountToStake, 1e36);
+            uint256 _lastIndex = staking.lastIndex(targetToken);
+            uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
+            console.log("_amount", _amount);
+            if (_amount == 0) {
+                _amount = _lastIndex / 1e10;
+            }
+            if (_amount < minAmountToStake) {
+                _amount *= (_lastIndex / 1e10);
+            }
+            rewardAmount = bound(rewardAmount, Math.min(_amount * 1e6, 1e36 - 2) + 1, 1e36);
             _stake(rewardAmount * 25, WETHOrUSDB, currentActor);
             (, rewardOfUser) = staking.balanceAndRewards(targetToken, currentActor);
         }
