@@ -96,8 +96,4 @@ contract BaseLaunchpadTest is Test {
         assert(address(launchpad) == address(staking.launchpadAddress()));
         vm.stopPrank();
     }
-
-    function test_() public {
-        assert(true);
-    }
 }

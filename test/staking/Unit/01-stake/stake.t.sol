@@ -51,7 +51,7 @@ contract StakeTest is BaseStakingTest {
 
         Staking.StakingUser memory userInfo = staking.userInfo(address(USDB), user);
 
-        assertEq(userInfo.amountDeposited + userInfo.remainders, amount);
+        assertEq(userInfo.lockedBalance + userInfo.remainders, amount);
         assertEq(block.timestamp, userInfo.timestampToWithdraw);
 
         vm.stopPrank();
@@ -68,7 +68,7 @@ contract StakeTest is BaseStakingTest {
 
         userInfo = staking.userInfo(address(USDB), user2);
 
-        assertEq(userInfo.amountDeposited + userInfo.remainders, amount2);
+        assertEq(userInfo.lockedBalance + userInfo.remainders, amount2);
         assertEq(block.timestamp, userInfo.timestampToWithdraw);
 
         vm.stopPrank();

@@ -35,10 +35,10 @@ contract Staking is OwnableUpgradeable {
 
     IERC20 public BLP;
 
-    // Invariant: amountDeposited <= balanceScaled * lastIndex
+    // Invariant: lockedBalance <= balanceScaled * lastIndex
     struct StakingUser {
         uint256 balanceScaled;
-        uint256 amountDeposited;
+        uint256 lockedBalance;
         uint256 remainders;
         uint256 timestampToWithdraw;
     }
@@ -101,14 +101,23 @@ contract Staking is OwnableUpgradeable {
         return stakingInfos[targetToken].totalSupplyScaled.wadMul(lastIndex(targetToken));
     }
 
+    function _balanceAndRewards(StakingUser memory user, uint256 index)
+        internal
+        pure
+        returns (uint256 balance, uint256 rewards)
+    {
+        // Round up to ensure that user can't withdraw more balance as rewards.
+        uint256 lockedBalanceScaled = user.lockedBalance.wadDivRoundingUp(index);
+        balance = lockedBalanceScaled.wadMul(index) + user.remainders;
+        rewards = (user.balanceScaled - lockedBalanceScaled).wadMul(index);
+    }
+
     function balanceAndRewards(address targetToken, address account)
         public
         view
         returns (uint256 balance, uint256 rewards)
     {
-        StakingUser memory user = stakingInfos[targetToken].users[account];
-        balance = user.amountDeposited + user.remainders;
-        rewards = _calculateUserRewards(lastIndex(targetToken), user.amountDeposited, user.balanceScaled);
+        return _balanceAndRewards(stakingInfos[targetToken].users[account], lastIndex(targetToken));
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -140,16 +149,6 @@ contract Staking is OwnableUpgradeable {
         info.totalSupplyScaled -= scaledBalanceDecrease;
         user.balanceScaled -= scaledBalanceDecrease;
         user.remainders += scaledBalanceDecrease.wadMul(info.lastIndex) - amount;
-    }
-
-    function _calculateUserRewards(uint256 index, uint256 amountDeposited, uint256 balanceScaled)
-        internal
-        pure
-        returns (uint256)
-    {
-        uint256 depositedScaled = amountDeposited.wadDivRoundingUp(index);
-        uint256 scaledRewards = depositedScaled > balanceScaled ? 0 : balanceScaled - depositedScaled;
-        return scaledRewards.wadMul(index);
     }
 
     function _convertETHToUSDB(uint256 volume) internal view returns (uint256) {
@@ -190,18 +189,18 @@ contract Staking is OwnableUpgradeable {
         _updateLastIndex(info, depositToken);
 
         uint256 scaledBalanceIncrease = amount.wadDiv(info.lastIndex);
-        uint256 depositedIncrease = scaledBalanceIncrease.wadMul(info.lastIndex);
-        uint256 remaindersIncrease = amount - depositedIncrease;
+        uint256 remaindersIncrease = amount - scaledBalanceIncrease.wadMul(info.lastIndex);
 
         info.totalSupplyScaled += scaledBalanceIncrease;
         user.balanceScaled += scaledBalanceIncrease;
-        user.amountDeposited += depositedIncrease;
+        user.lockedBalance += amount - remaindersIncrease;
         user.remainders += remaindersIncrease;
         user.timestampToWithdraw = block.timestamp + minTimeToWithdraw;
 
+        uint256 totalUserBalance = user.balanceScaled.wadMul(info.lastIndex) + user.remainders;
+
         require(
-            _convertToUSDB(user.amountDeposited, depositToken) >= minUSDBStakeValue,
-            "BlastUp: you must send more to stake"
+            _convertToUSDB(totalUserBalance, depositToken) >= minUSDBStakeValue, "BlastUp: you must send more to stake"
         );
 
         if (msg.value == 0) {
@@ -223,7 +222,7 @@ contract Staking is OwnableUpgradeable {
 
         _updateLastIndex(info, targetToken);
 
-        uint256 totalRewards = _calculateUserRewards(info.lastIndex, user.amountDeposited, user.balanceScaled);
+        (, uint256 totalRewards) = _balanceAndRewards(user, info.lastIndex);
         require(totalRewards >= rewardAmount, "BlastUP: you do not have enough rewards");
 
         _decreaseBalance(info, user, rewardAmount);
@@ -257,14 +256,17 @@ contract Staking is OwnableUpgradeable {
         }
 
         require(user.timestampToWithdraw <= block.timestamp, "BlastUP: you must wait more time");
-        require(amount <= (user.amountDeposited + user.remainders), "BlastUP: you do not have enough balance");
 
         _updateLastIndex(info, targetToken);
-        uint256 amountFromRemainders = Math.min(user.remainders, amount);
-        user.remainders -= amountFromRemainders;
-        user.amountDeposited -= amount - amountFromRemainders;
+        (uint256 maxWithdraw,) = _balanceAndRewards(user, info.lastIndex);
+        require(amount <= maxWithdraw, "BlastUP: you do not have enough balance");
 
-        _decreaseBalance(info, user, amount - amountFromRemainders);
+        uint256 amountFromRemainders = Math.min(user.remainders, amount);
+        uint256 amountFromBalance = amount - amountFromRemainders;
+        user.remainders -= amountFromRemainders;
+        user.lockedBalance = (amountFromBalance > user.lockedBalance) ? 0 : user.lockedBalance - amountFromBalance;
+
+        _decreaseBalance(info, user, amountFromBalance);
 
         if (targetToken == address(WETH) && getETH) {
             _unwrapETH(amount);

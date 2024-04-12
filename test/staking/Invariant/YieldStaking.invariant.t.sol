@@ -10,19 +10,10 @@ contract StakingInvariant is BaseStakingTest {
     function setUp() public override {
         super.setUp();
         handler = new StakingHandler(staking, address(USDB), address(WETH));
-
-        bytes4[] memory selectors = new bytes4[](4);
-        selectors[0] = StakingHandler.stake.selector;
-        selectors[1] = StakingHandler.withdraw.selector;
-        selectors[2] = StakingHandler.claimReward.selector;
-        selectors[3] = StakingHandler.setMinUSDBStakeValue.selector;
-
-        targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
-        excludeContract(address(WETH));
-        excludeContract(address(USDB));
-
         excludeSender(admin);
+        address stakingProxyAdmin = vm.computeCreateAddress(address(staking), 1);
+        excludeSender(stakingProxyAdmin);
     }
 
     function invariant_balanceEqStakedPlusClaimed() public view {

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.25;
 
 import {CommonBase} from "forge-std/Base.sol";
+import {StdAssertions} from "forge-std/StdAssertions.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {console} from "forge-std/console.sol";
@@ -10,8 +11,9 @@ import {BaseStakingTest, Staking, WadMath, ERC20Mock, ERC20RebasingMock} from ".
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {WadMath} from "../../../../src/libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract StakingHandler is CommonBase, StdCheats, StdUtils {
+contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
     using LibAddressSet for AddressSet;
     using WadMath for uint256;
     using Math for uint256;
@@ -21,6 +23,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
     address internal immutable weth;
 
     mapping(address => uint256) public ghost_stakedSums;
+    mapping(address token => mapping(address user => uint256 amount)) deposited;
 
     mapping(bytes32 => uint256) public calls;
 
@@ -49,44 +52,51 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         weth = _weth;
     }
 
-    function _stake(uint256 amount, bool WETHOrUSDB, address actor) internal {
-        address depositToken = WETHOrUSDB ? usdb : weth;
+    function _getUserBalance(address token, address user) internal view returns (uint256) {
+        (uint256 balance, uint256 rewards) = staking.balanceAndRewards(token, user);
 
-        uint256 increaseStakedAmount = ERC20RebasingMock(depositToken).getClaimableAmount(address(staking)) + amount;
-        ghost_stakedSums[depositToken] += increaseStakedAmount;
+        return balance + rewards;
+    }
 
-        vm.startPrank(actor);
-        ERC20Mock(depositToken).mint(actor, amount);
-        console.log("Actor balance", actor, IERC20(depositToken).balanceOf(actor));
-        IERC20(depositToken).approve(address(staking), amount);
-        console.log("Actor allowance", actor, IERC20(depositToken).allowance(actor, address(staking)));
-        staking.stake(depositToken, amount);
-        (uint256 balance, uint256 rewards) = staking.balanceAndRewards(depositToken, actor);
-        console.log("Actor staked balance and rewards", balance, rewards);
-        vm.stopPrank();
+    function _increaseGhostWithRewards(address token) internal {
+        ghost_stakedSums[token] += ERC20RebasingMock(token).getClaimableAmount(address(staking));
     }
 
     function stake(uint256 amount, bool WETHOrUSDB) public createActor countCall("stake") {
-        uint256 minAmountToStake = staking.minUSDBStakeValue() + 10;
         address depositToken = WETHOrUSDB ? usdb : weth;
-        if (!WETHOrUSDB) {
-            minAmountToStake = (minAmountToStake + 1000) / 100;
+        amount = _bound(amount, 0, 10 ** IERC20Metadata(depositToken).decimals());
+
+        (uint256 balance, uint256 rewards) = staking.balanceAndRewards(depositToken, currentActor);
+        uint256 balanceAfter = balance + rewards + amount;
+        uint256 usdbValue;
+        if (depositToken == usdb) {
+            usdbValue = balanceAfter;
+        } else {
+            (, int256 wethPrice,,,) = staking.oracle().latestRoundData();
+            usdbValue =
+                balanceAfter * uint256(wethPrice) * (10 ** IERC20Metadata(usdb).decimals()) / ((10 ** 18) * (10 ** 8));
         }
 
-        vm.assume(staking.lastIndex(depositToken) < 1e28);
+        uint256 minAmountToStake = staking.minUSDBStakeValue();
+        staking.userInfo(depositToken, currentActor);
 
-        uint256 _lastIndex = staking.lastIndex(depositToken);
-        uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
-        console.log("_amount", _amount);
-        if (_amount == 0) {
-            _amount = _lastIndex / 1e10;
-        }
-        if (_amount < minAmountToStake) {
-            _amount *= (_lastIndex / 1e10);
-        }
-        amount = bound(amount, Math.min(_amount * 1e6, 1e36 - 2) + 1, 1e36);
+        vm.startPrank(currentActor);
+        ERC20Mock(depositToken).mint(currentActor, amount);
+        IERC20(depositToken).approve(address(staking), amount);
 
-        _stake(amount, WETHOrUSDB, currentActor);
+        if (usdbValue < minAmountToStake) {
+            vm.expectRevert();
+            staking.stake(depositToken, amount);
+            return;
+        }
+
+        _increaseGhostWithRewards(depositToken);
+        ghost_stakedSums[depositToken] += amount;
+        deposited[depositToken][currentActor] += amount;
+
+        uint256 balanceBefore = _getUserBalance(depositToken, currentActor);
+        staking.stake(depositToken, amount);
+        assertGe(_getUserBalance(depositToken, currentActor), balanceBefore + amount);
     }
 
     function withdraw(uint256 actorSeed, uint256 amount, bool WETHOrUSDB)
@@ -95,34 +105,21 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         countCall("withdraw")
     {
         address targetToken = WETHOrUSDB ? usdb : weth;
-        vm.assume(staking.lastIndex(targetToken) < 1e28);
-
         (uint256 balanceOfUser,) = staking.balanceAndRewards(targetToken, currentActor);
 
-        if (balanceOfUser == 0) {
-            uint256 minAmountToStake = staking.minUSDBStakeValue() + 10;
-            if (!WETHOrUSDB) {
-                minAmountToStake = (minAmountToStake + 1000) / 100;
-            }
-            uint256 _lastIndex = staking.lastIndex(targetToken);
-            uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
-            console.log("_amount", _amount);
-            if (_amount == 0) {
-                _amount = _lastIndex / 1e10;
-            }
-            if (_amount < minAmountToStake) {
-                _amount *= (_lastIndex / 1e10);
-            }
+        Staking.StakingUser memory user = staking.userInfo(targetToken, currentActor);
 
-            amount = bound(amount, Math.min(_amount * 1e6, 1e36 - 2) + 1, 1e36);
-            _stake(amount, WETHOrUSDB, currentActor);
-            (balanceOfUser,) = staking.balanceAndRewards(targetToken, currentActor);
-        }
-        amount = bound(amount, 1, balanceOfUser);
+        amount = _bound(amount, 0, balanceOfUser);
+        vm.assume(amount > 0);
+        vm.assume(block.timestamp >= user.timestampToWithdraw);
 
-        uint256 increaseStakedAmount = ERC20RebasingMock(targetToken).getClaimableAmount(address(staking));
-        ghost_stakedSums[targetToken] += increaseStakedAmount;
+        _increaseGhostWithRewards(targetToken);
         ghost_stakedSums[targetToken] -= amount;
+        if (amount > deposited[targetToken][currentActor]) {
+            deposited[targetToken][currentActor] = 0;
+        } else {
+            deposited[targetToken][currentActor] -= amount;
+        }
 
         vm.startPrank(currentActor);
         staking.withdraw(targetToken, amount, false);
@@ -136,61 +133,55 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils {
         address targetToken = WETHOrUSDB ? usdb : weth;
         address rewardToken = targetToken;
 
-        vm.assume(staking.lastIndex(targetToken) < 1e28);
-
-        Staking.StakingUser memory userInfo = staking.userInfo(targetToken, currentActor);
-        console.log("user: ", userInfo.balanceScaled, userInfo.amountDeposited, userInfo.remainders);
         (, uint256 rewardOfUser) = staking.balanceAndRewards(targetToken, currentActor);
+        rewardAmount = _bound(rewardAmount, 0, rewardOfUser);
 
-        if (rewardOfUser == 0) {
-            uint256 minAmountToStake = staking.minUSDBStakeValue() + 10;
-            if (!WETHOrUSDB) {
-                minAmountToStake = (minAmountToStake + 1000) / 100;
-            }
-            uint256 _lastIndex = staking.lastIndex(targetToken);
-            uint256 _amount = minAmountToStake.wadDiv(_lastIndex).wadMul(_lastIndex);
-            console.log("_amount", _amount);
-            if (_amount == 0) {
-                _amount = _lastIndex / 1e10;
-            }
-            if (_amount < minAmountToStake) {
-                _amount *= (_lastIndex / 1e10);
-            }
-            rewardAmount = bound(rewardAmount, Math.min(_amount * 1e6, 1e36 - 2) + 1, 1e36);
-            _stake(rewardAmount * 25, WETHOrUSDB, currentActor);
-            (, rewardOfUser) = staking.balanceAndRewards(targetToken, currentActor);
-        }
-        rewardAmount = bound(rewardAmount, 0, rewardOfUser);
+        vm.assume(rewardAmount > 0);
 
-        uint256 increaseStakedAmount = ERC20RebasingMock(targetToken).getClaimableAmount(address(staking));
-        ghost_stakedSums[targetToken] += increaseStakedAmount;
+        _increaseGhostWithRewards(targetToken);
         ghost_stakedSums[targetToken] -= rewardAmount;
 
         vm.startPrank(currentActor);
         staking.claimReward(targetToken, rewardToken, rewardAmount, false);
     }
 
+    // Ensure that user can always withdraw his funds in full.
+    function forceWithdrawAll(uint256 actorSeed, bool useWETH)
+        public
+        useActor(actorSeed)
+        countCall("forceWithdrawAll")
+    {
+        address token = useWETH ? weth : usdb;
+        Staking.StakingUser memory user = staking.userInfo(token, currentActor);
+        if (block.timestamp < user.timestampToWithdraw) {
+            vm.warp(user.timestampToWithdraw);
+        }
+        uint256 amount = deposited[token][currentActor];
+
+        _increaseGhostWithRewards(token);
+        ghost_stakedSums[token] -= amount;
+        deposited[token][currentActor] = 0;
+
+        vm.startPrank(currentActor);
+        staking.withdraw(token, amount, false);
+    }
+
     function setMinTimeToWithdraw(uint256 amount) public countCall("setMinTimeToWithdraw") {
-        amount = bound(amount, 0, 10 ** 5);
+        amount = _bound(amount, 0, 10 ** 5);
         vm.startPrank(staking.owner());
         staking.setMinTimeToWithdraw(amount);
         vm.stopPrank();
     }
 
     function setMinUSDBStakeValue(uint256 amount) public countCall("setMinUSDBStakeValue") {
-        amount = bound(amount, 0, 1e6 * 1e18);
+        amount = _bound(amount, 0, 1e6 * 1e18);
         vm.startPrank(staking.owner());
         staking.setMinUSDBStakeValue(amount);
         vm.stopPrank();
     }
 
-    function callSummary() external view {
-        console.log("Call summary:");
-        console.log("-------------------");
-        console.log("stake", calls["stake"]);
-        console.log("withdraw", calls["withdraw"]);
-        console.log("claimReward", calls["claimReward"]);
-        console.log("setMinUSDBStakeValue", calls["setMinUSDBStakeValue"]);
-        console.log("-------------------");
+    function warp(uint256 secs) public {
+        secs = _bound(secs, 0, 30 days);
+        vm.warp(block.timestamp + secs);
     }
 }
