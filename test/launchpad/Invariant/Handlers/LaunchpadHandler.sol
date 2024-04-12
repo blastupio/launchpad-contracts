@@ -120,7 +120,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         address addressForCollected,
         uint256 price,
         uint256 tgePercent,
-        uint256 volumeForHighTiers
+        uint256 percentHighTiers
     ) public createToken countCall("placeTokens") {
         initialVolume = bound(initialVolume, 1e24, 1e38);
         addressForCollected =
@@ -128,13 +128,13 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
         price = bound(price, 1e5, 1e19);
         tgePercent = bound(tgePercent, 0, 100);
-        volumeForHighTiers = bound(volumeForHighTiers, 50, 85);
-        uint256 volumeForLowTiers = 95 - volumeForHighTiers;
-        uint256 volumeForYieldStakers = 100 - volumeForLowTiers - volumeForHighTiers;
+        percentHighTiers = bound(percentHighTiers, 50, 85);
+        uint256 percentLowTiers = 95 - percentHighTiers;
+        uint256 percentYieldStakers = 100 - percentLowTiers - percentHighTiers;
 
-        uint256 initialVolumeForHighTiers = initialVolume * volumeForHighTiers / 100;
-        uint256 initialVolumeForLowTiers = initialVolume * volumeForLowTiers / 100;
-        uint256 initialVolumeForYieldStakers = initialVolume * volumeForYieldStakers / 100;
+        uint256 initialVolumeForHighTiers = initialVolume * percentHighTiers / 100;
+        uint256 initialVolumeForLowTiers = initialVolume * percentLowTiers / 100;
+        uint256 volumeForYieldStakers = initialVolume * percentYieldStakers / 100;
         uint256 vestingDuration = 60;
 
         ILaunchpad.PlaceTokensInput memory input = ILaunchpad.PlaceTokensInput({
@@ -142,7 +142,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             token: currentToken,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
-            initialVolumeForYieldStakers: initialVolumeForYieldStakers,
+            volumeForYieldStakers: volumeForYieldStakers,
             timeOfEndRegistration: block.timestamp + 100,
             addressForCollected: addressForCollected,
             vestingDuration: vestingDuration,
@@ -242,10 +242,10 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         vm.startPrank(launchpad.owner());
         uint256 _timestamp =
             block.timestamp > placedToken.currentStateEnd ? block.timestamp : placedToken.currentStateEnd;
-        launchpad.setTgeTimestamp(currentToken, _timestamp + 1);
-        launchpad.setVestingStartTimestamp(currentToken, _timestamp + 16);
         vm.warp(_timestamp + 1);
         launchpad.endSale(currentToken);
+        launchpad.setTgeTimestamp(currentToken, _timestamp + 1);
+        launchpad.setVestingStartTimestamp(currentToken, _timestamp + 16);
         vm.stopPrank();
     }
 

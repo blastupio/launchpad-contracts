@@ -9,7 +9,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
         uint256 initialVolume = 100 * 10 ** 18;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
         uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
-        uint256 initialVolumeForYieldStakers = initialVolume * 20 / 100;
+        uint256 volumeForYieldStakers = initialVolume * 20 / 100;
         address addressForCollected = address(2);
         uint256 timeOfEndRegistration = nowTimestamp + 600;
         uint256 price = 10 ** 18;
@@ -21,7 +21,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
             token: address(testToken),
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
-            initialVolumeForYieldStakers: initialVolumeForYieldStakers,
+            volumeForYieldStakers: volumeForYieldStakers,
             timeOfEndRegistration: timeOfEndRegistration,
             addressForCollected: addressForCollected,
             vestingDuration: vestingDuration,
@@ -37,7 +37,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
 
         assertEq(testToken.balanceOf(address(launchpad)), initialVolume);
         assertEq(placedToken.price, price);
-        assertEq(placedToken.volumeForYieldStakers, initialVolumeForYieldStakers);
+        assertEq(placedToken.volumeForYieldStakers, volumeForYieldStakers);
         assertEq(placedToken.tokenDecimals, 18);
 
         vm.expectRevert("BlastUP: This token was already placed");
@@ -47,7 +47,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
         input.token = address(testToken2);
         input.initialVolumeForHighTiers = 0;
         input.initialVolumeForLowTiers = 0;
-        input.initialVolumeForYieldStakers = 0;
+        input.volumeForYieldStakers = 0;
 
         vm.expectRevert("BlastUP: initial Volume must be > 0");
 

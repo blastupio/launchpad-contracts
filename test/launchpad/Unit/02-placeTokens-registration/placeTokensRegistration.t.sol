@@ -12,7 +12,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 initialVolume = 100 * 10 ** 18;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
         uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
-        uint256 initialVolumeForYieldStakers = initialVolume * 20 / 100;
+        uint256 volumeForYieldStakers = initialVolume * 20 / 100;
         address addressForCollected = address(2);
         uint256 timeOfEndRegistration = nowTimestamp + 600;
         uint256 price = 10 ** 18;
@@ -24,7 +24,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             token: address(testToken),
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
-            initialVolumeForYieldStakers: initialVolumeForYieldStakers,
+            volumeForYieldStakers: volumeForYieldStakers,
             timeOfEndRegistration: timeOfEndRegistration,
             addressForCollected: addressForCollected,
             vestingDuration: vestingDuration,
@@ -57,7 +57,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 nowTimestamp = block.timestamp;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
         uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
-        uint256 initialVolumeForYieldStakers = initialVolume * 20 / 100;
+        uint256 volumeForYieldStakers = initialVolume * 20 / 100;
         uint256 vestingDuration = 60;
 
         ILaunchpad.PlaceTokensInput memory input = ILaunchpad.PlaceTokensInput({
@@ -65,7 +65,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             token: address(testToken),
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
-            initialVolumeForYieldStakers: initialVolumeForYieldStakers,
+            volumeForYieldStakers: volumeForYieldStakers,
             timeOfEndRegistration: timeOfEndRegistration,
             addressForCollected: addressForCollected,
             vestingDuration: vestingDuration,

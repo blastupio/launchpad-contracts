@@ -84,23 +84,23 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     }
 
     function userAllowedAllocation(address token, address user) public view returns (uint256) {
-        if (users[token][user].registered) {
-            if (placedTokens[token].status == SaleStatus.PUBLIC_SALE) {
-                UserTiers tier = users[token][user].tier;
-                uint256 weight = weightForTier[tier];
-                uint256 boughtAmount = users[token][user].boughtAmount;
-                if (users[token][user].tier < UserTiers.TITANIUM) {
-                    return weight * placedTokens[token].initialVolumeForLowTiers
-                        / placedTokens[token].lowTiersWeightsSum - boughtAmount;
-                } else {
-                    return weight * placedTokens[token].initialVolumeForHighTiers
-                        / placedTokens[token].highTiersWeightsSum - boughtAmount;
-                }
-            } else if (users[token][user].tier >= UserTiers.TITANIUM) {
-                return placedTokens[token].volumeForHighTiers;
+        if (!users[token][user].registered) return 0;
+        if (placedTokens[token].status == SaleStatus.PUBLIC_SALE) {
+            UserTiers tier = users[token][user].tier;
+            uint256 weight = weightForTier[tier];
+            uint256 boughtAmount = users[token][user].boughtAmount;
+            if (users[token][user].tier < UserTiers.TITANIUM) {
+                return weight * placedTokens[token].initialVolumeForLowTiers / placedTokens[token].lowTiersWeightsSum
+                    - boughtAmount;
+            } else {
+                return weight * placedTokens[token].initialVolumeForHighTiers / placedTokens[token].highTiersWeightsSum
+                    - boughtAmount;
             }
+        } else if (users[token][user].tier >= UserTiers.TITANIUM) {
+            return placedTokens[token].volumeForHighTiers;
+        } else {
+            return 0;
         }
-        return 0;
     }
 
     function getClaimableAmount(address token, address user) public view returns (uint256) {
@@ -132,11 +132,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return uint256(ans) * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
     }
 
-    function _convertUSDBToETH(uint256 volume) private view returns (uint256) {
-        (, int256 ans,,,) = oracle.latestRoundData();
-        return volume * (10 ** 18) * (10 ** oracleDecimals) / (10 ** decimalsUSDB) / uint256(ans);
-    }
-
     function _calculateTokensAmount(uint256 volume, address paymentContract, uint8 decimals, uint256 price)
         private
         view
@@ -153,34 +148,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return tokensAmount;
     }
 
-    function _buyTokens(
-        PlacedToken storage placedToken,
-        User storage user,
-        address receiver,
-        address token,
-        uint256 tokensAmount
-    ) internal {
-        if (msg.sender != yieldStaking) {
-            require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
-            require(userAllowedAllocation(token, receiver) >= tokensAmount, "BlastUP: You have not enough allocation");
-
-            // Underflow not possible, amount will be set to 0 if not enough
-            if (users[token][receiver].tier < UserTiers.TITANIUM) {
-                placedToken.volumeForLowTiers -= tokensAmount;
-            } else {
-                placedToken.volumeForHighTiers -= tokensAmount;
-            }
-        } else if (placedToken.status == SaleStatus.PUBLIC_SALE) {
-            require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
-
-            placedToken.volumeForYieldStakers -= tokensAmount;
-        } else {
-            revert InvalidSaleStatus(token);
-        }
-
-        user.boughtAmount += tokensAmount;
-    }
-
     /* ========== FUNCTIONS ========== */
 
     function setSigner(address _signer) external onlyOwner {
@@ -189,24 +156,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     function setOperator(address _operator) external onlyOwner {
         operator = _operator;
-    }
-
-    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOperator {
-        require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");
-        require(
-            _vestingStartTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _vestingStartTimestamp,
-            "BlastUP: invalid vesting start timestamp"
-        );
-        placedTokens[token].vestingStartTimestamp = _vestingStartTimestamp;
-    }
-
-    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOperator {
-        require(placedTokens[token].tgeTimestamp > block.timestamp, "BlastUP: tge already started");
-        require(
-            _tgeTimestamp > block.timestamp && placedTokens[token].currentStateEnd < _tgeTimestamp,
-            "BlastUP: invalid tge timestamp"
-        );
-        placedTokens[token].tgeTimestamp = _tgeTimestamp;
     }
 
     function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOperator {
@@ -219,9 +168,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     }
 
     function setWeightsForTiers(uint256[6] memory tiers) external onlyOperator {
-        require(
-            tiers[0] + tiers[1] + tiers[2] == 100 && tiers[3] + tiers[4] + tiers[5] == 100, "BlastUP: invalid weights"
-        );
         weightForTier[UserTiers.BRONZE] = tiers[0];
         weightForTier[UserTiers.SILVER] = tiers[1];
         weightForTier[UserTiers.GOLD] = tiers[2];
@@ -236,7 +182,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         require(placedToken.status == SaleStatus.NOT_PLACED, "BlastUP: This token was already placed");
 
         uint256 sumVolume =
-            input.initialVolumeForHighTiers + input.initialVolumeForLowTiers + input.initialVolumeForYieldStakers;
+            input.initialVolumeForHighTiers + input.initialVolumeForLowTiers + input.volumeForYieldStakers;
         require(sumVolume > 0, "BlastUP: initial Volume must be > 0");
 
         uint256 timeOfEndRegistration =
@@ -250,7 +196,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         placedToken.initialVolumeForLowTiers = input.initialVolumeForLowTiers;
         placedToken.volumeForLowTiers = input.initialVolumeForLowTiers;
 
-        placedToken.volumeForYieldStakers = input.initialVolumeForYieldStakers;
+        placedToken.volumeForYieldStakers = input.volumeForYieldStakers;
 
         placedToken.tokenDecimals = IERC20Metadata(input.token).decimals();
         placedToken.addressForCollected = input.addressForCollected;
@@ -355,61 +301,47 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         if (msg.value > 0) {
             paymentContract = address(WETH);
             volume = msg.value;
-            payable(placedToken.addressForCollected).call{value: msg.value};
         } else {
             require(volume > 0, "BlastUP: volume must be greater than 0");
             require(
                 (paymentContract == address(WETH)) || (paymentContract == address(USDB)),
                 "BlastUP: incorrect payment contract"
             );
-            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
         }
 
         uint256 tokensAmount =
             _calculateTokensAmount(volume, paymentContract, placedToken.tokenDecimals, placedToken.price);
 
-        _buyTokens(placedToken, user, receiver, token, tokensAmount);
+        if (msg.sender != yieldStaking) {
+            require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
+            require(userAllowedAllocation(token, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
+
+            // Underflow not possible
+            if (user.tier < UserTiers.TITANIUM) {
+                placedToken.volumeForLowTiers -= tokensAmount;
+            } else {
+                placedToken.volumeForHighTiers -= tokensAmount;
+            }
+        } else if (placedToken.status == SaleStatus.PUBLIC_SALE) {
+            require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
+
+            placedToken.volumeForYieldStakers -= tokensAmount;
+        } else {
+            revert InvalidSaleStatus(token);
+        }
+
+        user.boughtAmount += tokensAmount;
+
+        if (msg.value > 0) {
+            (bool success,) = payable(placedToken.addressForCollected).call{value: msg.value}("");
+            require(success, "BlastUP: failed to send ETH");
+        } else {
+            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
+        }
 
         emit TokensBought(token, receiver, tokensAmount);
 
         return tokensAmount;
-    }
-
-    function buyTokensByQuantity(address token, address paymentContract, uint256 quantity, address receiver)
-        external
-        payable
-    {
-        PlacedToken storage placedToken = placedTokens[token];
-        User storage user = users[token][receiver];
-
-        require(
-            placedToken.status == SaleStatus.PUBLIC_SALE || placedToken.status == SaleStatus.FCFS_SALE,
-            "BlastUP: invalid status"
-        );
-        require(block.timestamp < placedToken.currentStateEnd, "BlastUP: round is ended");
-        require(quantity > 0, "BlastUP: quantitu must be greater than zero");
-
-        uint256 volume = quantity * placedToken.price / (10 ** placedToken.tokenDecimals);
-
-        if (msg.value > 0) {
-            paymentContract = address(WETH);
-            volume = _convertUSDBToETH(volume);
-            if (msg.value > volume) {
-                payable(msg.sender).call{value: msg.value - volume};
-            }
-            payable(placedToken.addressForCollected).call{value: volume};
-        } else {
-            if (paymentContract == address(WETH)) {
-                volume = _convertUSDBToETH(volume);
-            } else {
-                require(paymentContract == address(USDB));
-            }
-            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
-        }
-
-        _buyTokens(placedToken, user, receiver, token, quantity);
-
-        emit TokensBought(token, receiver, quantity);
     }
 
     function endSale(address token) external onlyOperator {
@@ -431,6 +363,22 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         IERC20(token).safeTransfer(owner(), volume);
 
         emit SaleEnded(token);
+    }
+
+    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOperator {
+        require(_tgeTimestamp > block.timestamp, "BlastUP: invalid tge timestamp");
+        require(placedTokens[token].tgeTimestamp > block.timestamp, "BlastUP: tge already started");
+        require(placedTokens[token].status == SaleStatus.POST_SALE, "BlastUP: invalid status");
+
+        placedTokens[token].tgeTimestamp = _tgeTimestamp;
+    }
+
+    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOperator {
+        require(_vestingStartTimestamp > block.timestamp, "BlastUP: invalid vesting start timestamp");
+        require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");
+        require(placedTokens[token].status == SaleStatus.POST_SALE, "BlastUP: invalid status");
+
+        placedTokens[token].vestingStartTimestamp = _vestingStartTimestamp;
     }
 
     function claimTokens(address token) external {

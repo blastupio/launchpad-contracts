@@ -43,7 +43,7 @@ interface ILaunchpad {
         address addressForCollected;
         SaleStatus status;
         uint256 currentStateEnd;
-        uint256 vestingStartTimestamp; // or cliff end
+        uint256 vestingStartTimestamp;
         uint256 vestingDuration;
         uint256 tgeTimestamp;
         uint8 tgePercent;
@@ -52,9 +52,9 @@ interface ILaunchpad {
     struct PlaceTokensInput {
         uint256 price;
         address token;
+        uint256 volumeForYieldStakers;
         uint256 initialVolumeForHighTiers;
         uint256 initialVolumeForLowTiers;
-        uint256 initialVolumeForYieldStakers;
         uint256 timeOfEndRegistration;
         address addressForCollected;
         uint256 vestingDuration;
@@ -73,10 +73,6 @@ interface ILaunchpad {
         external
         payable
         returns (uint256);
-
-    function buyTokensByQuantity(address token, address paymentContract, uint256 quantity, address receiver)
-        external
-        payable;
 
     function claimTokens(address token) external;
 }
