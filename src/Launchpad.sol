@@ -119,8 +119,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             ) - claimedAmount;
     }
 
-    modifier onlyOperator() {
-        require(msg.sender == operator, "BlastUP: caller is not the operator");
+    modifier onlyOperatorOrOwner() {
+        require(msg.sender == operator || msg.sender == owner(), "BlastUP: caller is not the operator");
         _;
     }
 
@@ -158,7 +158,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         operator = _operator;
     }
 
-    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOperator {
+    function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOperatorOrOwner {
         minAmountForTier[UserTiers.BRONZE] = amounts[0];
         minAmountForTier[UserTiers.SILVER] = amounts[1];
         minAmountForTier[UserTiers.GOLD] = amounts[2];
@@ -167,7 +167,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         minAmountForTier[UserTiers.DIAMOND] = amounts[5];
     }
 
-    function setWeightsForTiers(uint256[6] memory tiers) external onlyOperator {
+    function setWeightsForTiers(uint256[6] memory tiers) external onlyOperatorOrOwner {
         weightForTier[UserTiers.BRONZE] = tiers[0];
         weightForTier[UserTiers.SILVER] = tiers[1];
         weightForTier[UserTiers.GOLD] = tiers[2];
@@ -237,7 +237,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit UserRegistered(msg.sender, token, tier);
     }
 
-    function endRegistration(address token) external onlyOperator {
+    function endRegistration(address token) external onlyOperatorOrOwner {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(placedToken.status == SaleStatus.REGISTRATION, "BlastUP: invalid status");
@@ -247,7 +247,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit RegistrationEnded(token);
     }
 
-    function startPublicSale(address token, uint256 endTimeOfTheRound) external onlyOperator {
+    function startPublicSale(address token, uint256 endTimeOfTheRound) external onlyOperatorOrOwner {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(placedToken.status == SaleStatus.POST_REGISTRATION, "BlastUp: invalid status");
@@ -262,7 +262,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit PublicSaleStarted(token);
     }
 
-    function startFCFSSale(address token, uint256 endTimeOfTheRound) external onlyOperator {
+    function startFCFSSale(address token, uint256 endTimeOfTheRound) external onlyOperatorOrOwner {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(
@@ -344,7 +344,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return tokensAmount;
     }
 
-    function endSale(address token) external onlyOperator {
+    function endSale(address token) external onlyOperatorOrOwner {
         PlacedToken storage placedToken = placedTokens[token];
 
         require(
@@ -365,7 +365,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit SaleEnded(token);
     }
 
-    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOperator {
+    function setTgeTimestamp(address token, uint256 _tgeTimestamp) external onlyOperatorOrOwner {
         require(_tgeTimestamp > block.timestamp, "BlastUP: invalid tge timestamp");
         require(placedTokens[token].tgeTimestamp > block.timestamp, "BlastUP: tge already started");
         require(placedTokens[token].status == SaleStatus.POST_SALE, "BlastUP: invalid status");
@@ -373,7 +373,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         placedTokens[token].tgeTimestamp = _tgeTimestamp;
     }
 
-    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOperator {
+    function setVestingStartTimestamp(address token, uint256 _vestingStartTimestamp) external onlyOperatorOrOwner {
         require(_vestingStartTimestamp > block.timestamp, "BlastUP: invalid vesting start timestamp");
         require(placedTokens[token].vestingStartTimestamp > block.timestamp, "BlastUP: vesting already started");
         require(placedTokens[token].status == SaleStatus.POST_SALE, "BlastUP: invalid status");

@@ -164,7 +164,7 @@ contract YieldStaking is OwnableUpgradeable {
     }
 
     /*
-        @param targetToken must be WETH or USDB
+        @param depositToken must be WETH or USDB
     */
     function stake(address depositToken, uint256 amount) external payable {
         if (msg.value > 0) {

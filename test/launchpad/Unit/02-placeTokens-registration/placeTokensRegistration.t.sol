@@ -7,6 +7,16 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
+    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
+        vm.startPrank(admin);
+        bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
+            .toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
+        return signature;
+    }
+
     modifier placeTokens() {
         uint256 nowTimestamp = block.timestamp;
         uint256 initialVolume = 100 * 10 ** 18;
@@ -105,21 +115,12 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 amountOfTokens = 2000; // BLP
         ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
 
-        vm.startPrank(admin);
-
-        bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
-            .toEthSignedMessageHash();
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        assert(digest.recover(signature) == admin);
-
+        
+        bytes memory signature = _getSignature(user, amountOfTokens);
+        vm.prank(admin);
         launchpad.endRegistration(address(testToken));
 
-        vm.stopPrank();
-
         vm.startPrank(user);
-
         vm.expectRevert("BlastUP: invalid status");
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
 
@@ -132,22 +133,12 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
 
         vm.warp(block.timestamp + 700);
 
-        vm.startPrank(admin);
-
-        bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
-            .toEthSignedMessageHash();
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
+        bytes memory signature = _getSignature(user, amountOfTokens);
         vm.stopPrank();
 
         vm.startPrank(user);
-
         vm.expectRevert("BlastUp: registration ended");
-
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
-
         vm.stopPrank();
     }
 
@@ -155,22 +146,11 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 amountOfTokens = 2000; // BLP
         ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.GOLD;
 
-        vm.startPrank(admin);
-
-        bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
-            .toEthSignedMessageHash();
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        vm.stopPrank();
+        bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.startPrank(user);
-
         vm.expectRevert("BlastUP: you do not have enough BLP tokens for that tier");
-
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
-
         vm.stopPrank();
     }
 
@@ -178,30 +158,15 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 amountOfTokens = 2000; // BLP
         ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
 
-        vm.startPrank(admin);
-
-        bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
-            .toEthSignedMessageHash();
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        vm.stopPrank();
+        bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.startPrank(user);
-
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
-
         ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user);
 
-        assert(userInfo.tier == tier);
+        assertEq(uint8(userInfo.tier), uint8(tier));
         assertEq(userInfo.registered, true);
         assertEq(launchpad.userAllowedAllocation(address(testToken), user), 0);
-
-        //ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
-
-        // assertEq(test_lowTiersWeightsSum, amountOfTokens);
-
         vm.stopPrank();
     }
 
@@ -209,24 +174,12 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 amountOfTokens = 2000; // BLP
         ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
 
-        vm.startPrank(admin);
-
-        bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
-            .toEthSignedMessageHash();
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        vm.stopPrank();
+        bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.startPrank(user);
-
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
-
         vm.expectRevert("BlastUP: you are already registered");
-
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
-
         vm.stopPrank();
     }
 
@@ -235,8 +188,8 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
 
         vm.expectRevert();
         launchpad.endRegistration(address(testToken));
-
         vm.stopPrank();
+
         vm.prank(admin);
         launchpad.setOperator(user);
 
@@ -245,10 +198,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_endRegistration() public placeTokens {
-        vm.stopPrank();
-
         vm.startPrank(admin);
-
         launchpad.endRegistration(address(testToken));
 
         vm.expectRevert("BlastUP: invalid status");
@@ -257,14 +207,13 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         vm.stopPrank();
     }
 
-    function getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
-        vm.startPrank(admin);
-        bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
-            .toEthSignedMessageHash();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        vm.stopPrank();
-        return signature;
+    function _checkRegisterUser(address _user, uint256 _amountOfTokens, ILaunchpad.UserTiers tier) internal {
+        bytes memory signature = _getSignature(_user, _amountOfTokens);
+        vm.prank(_user);
+        launchpad.register(address(testToken), tier, _amountOfTokens, signature);
+        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+        assertEq(uint8(userInfo.tier), uint8(tier));
+        assertTrue(userInfo.registered);
     }
 
     function test_Register_Fuzz(
@@ -301,47 +250,19 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             bound(amountOfTokens5, launchpad.minAmountForTier(tier5), launchpad.minAmountForTier(tier6) - 1);
         amountOfTokens6 = bound(amountOfTokens6, launchpad.minAmountForTier(tier6), 1e36);
 
-        bytes memory signature = getSignature(user, amountOfTokens);
-
+        bytes memory signature = _getSignature(user, amountOfTokens);
         vm.startPrank(user);
         vm.expectRevert();
         launchpad.register(address(testToken), tier1, amountOfTokens, signature);
+        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        assertTrue(!userInfo.registered);
         vm.stopPrank();
 
-        signature = getSignature(user, amountOfTokens1);
-
-        vm.startPrank(user);
-        launchpad.register(address(testToken), tier1, amountOfTokens1, signature);
-        vm.stopPrank();
-
-        signature = getSignature(user2, amountOfTokens2);
-
-        vm.startPrank(user2);
-        launchpad.register(address(testToken), tier2, amountOfTokens2, signature);
-        vm.stopPrank();
-
-        signature = getSignature(user3, amountOfTokens3);
-
-        vm.startPrank(user3);
-        launchpad.register(address(testToken), tier3, amountOfTokens3, signature);
-        vm.stopPrank();
-
-        signature = getSignature(user4, amountOfTokens4);
-
-        vm.startPrank(user4);
-        launchpad.register(address(testToken), tier4, amountOfTokens4, signature);
-        vm.stopPrank();
-
-        signature = getSignature(user5, amountOfTokens5);
-
-        vm.startPrank(user5);
-        launchpad.register(address(testToken), tier5, amountOfTokens5, signature);
-        vm.stopPrank();
-
-        signature = getSignature(user6, amountOfTokens6);
-
-        vm.startPrank(user6);
-        launchpad.register(address(testToken), tier6, amountOfTokens6, signature);
-        vm.stopPrank();
+        _checkRegisterUser(user, amountOfTokens1, tier1);
+        _checkRegisterUser(user2, amountOfTokens2, tier2);
+        _checkRegisterUser(user3, amountOfTokens3, tier3);
+        _checkRegisterUser(user4, amountOfTokens4, tier4);
+        _checkRegisterUser(user5, amountOfTokens5, tier5);
+        _checkRegisterUser(user6, amountOfTokens6, tier6);
     }
 }

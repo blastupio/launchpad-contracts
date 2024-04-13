@@ -242,7 +242,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         vm.startPrank(launchpad.owner());
         uint256 _timestamp =
             block.timestamp > placedToken.currentStateEnd ? block.timestamp : placedToken.currentStateEnd;
-        vm.warp(_timestamp + 1);
+        vm.warp(_timestamp);
         launchpad.endSale(currentToken);
         launchpad.setTgeTimestamp(currentToken, _timestamp + 1);
         launchpad.setVestingStartTimestamp(currentToken, _timestamp + 16);
