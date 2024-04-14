@@ -212,16 +212,12 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     function setTgeStart(address token, uint256 _tgeStart) external onlyOperatorOrOwner {
         require(_tgeStart > block.timestamp, "BlastUP: invalid tge timestamp");
-        require(placedTokens[token].tgeStart > block.timestamp, "BlastUP: tge already started");
-        require(getStatus(token) == SaleStatus.POST_SALE, "BlastUP: invalid status");
 
         placedTokens[token].tgeStart = _tgeStart;
     }
 
     function setVestingStartTimestamp(address token, uint256 _vestingStart) external onlyOperatorOrOwner {
         require(_vestingStart > block.timestamp, "BlastUP: invalid vesting start timestamp");
-        require(placedTokens[token].vestingStart > block.timestamp, "BlastUP: vesting already started");
-        require(getStatus(token) == SaleStatus.POST_SALE, "BlastUP: invalid status");
 
         placedTokens[token].vestingStart = _vestingStart;
     }
@@ -241,6 +237,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
                 && _placedToken.saleEnd > _placedToken.fcfsSaleStart && _placedToken.tgeStart > _placedToken.saleEnd
                 && _placedToken.vestingStart > _placedToken.tgeStart
         );
+        require(_placedToken.volume == sumVolume);
 
         placedTokens[token] = _placedToken;
 
@@ -301,9 +298,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         if (msg.sender != yieldStaking) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
             require(userAllowedAllocation(token, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
-
-            // Underflow not possible
-            placedToken.volume -= tokensAmount;
         } else if (status == SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
 
@@ -313,6 +307,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         }
 
         user.boughtAmount += tokensAmount;
+        placedToken.volume -= tokensAmount;
 
         if (msg.value > 0) {
             (bool success,) = payable(placedToken.addressForCollected).call{value: msg.value}("");
