@@ -96,34 +96,43 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier placeTokens() {
-        uint256 nowTimestamp = block.timestamp;
         uint256 initialVolume = 100 * 10 ** 18;
         uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
         uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
         uint256 volumeForYieldStakers = initialVolume * 20 / 100;
         address addressForCollected = address(2);
-        uint256 timeOfEndRegistration = nowTimestamp + 600;
         uint256 price = 10 ** 18;
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
 
-        ILaunchpad.PlaceTokensInput memory input = ILaunchpad.PlaceTokensInput({
+        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
             price: price,
-            token: address(testToken),
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
             volumeForYieldStakers: volumeForYieldStakers,
-            timeOfEndRegistration: timeOfEndRegistration,
             addressForCollected: addressForCollected,
+            volume: initialVolume,
+            registrationStart: block.timestamp + 1,
+            registrationEnd: block.timestamp + 11,
+            publicSaleStart: block.timestamp + 21,
+            fcfsSaleStart: type(uint256).max - 3,
+            saleEnd: type(uint256).max - 2,
+            tgeStart: type(uint256).max - 1,
+            vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
-            tgePercent: tgePercent
+            tgePercent: tgePercent,
+            initialized: true,
+            lowTiersWeightsSum: 0,
+            highTiersWeightsSum: 0,
+            tokenDecimals: 18
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, 100 * 10 ** 19);
         testToken.approve(address(launchpad), type(uint256).max);
-        launchpad.placeTokens(input);
+        launchpad.placeTokens(input, address(testToken));
         vm.stopPrank();
+        vm.warp(input.registrationStart);
         _;
     }
 
@@ -135,35 +144,47 @@ contract BuyTokensTest is BaseLaunchpadTest {
         uint256 tgePercent,
         uint256 volumeForHighTiers
     ) {
-        initialVolume = bound(initialVolume, 1e21, 1e40);
+        initialVolume = bound(initialVolume, 1e18, 1e37);
         address addressForCollected = address(uint160(bound(_addressForCollected, 100, type(uint160).max)));
 
         price = bound(price, 1e3, 1e19);
         tgePercent = bound(tgePercent, 0, 100);
+        timeOfEndRegistration = bound(timeOfEndRegistration, 10, 1e20);
 
-        uint256 nowTimestamp = block.timestamp;
-        uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
-        uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
-        uint256 volumeForYieldStakers = initialVolume * 20 / 100;
+        uint256 initialVolumeForHighTiers = initialVolume * 60;
+        uint256 initialVolumeForLowTiers = initialVolume * 20;
+        uint256 volumeForYieldStakers = initialVolume * 20;
         uint256 vestingDuration = 60;
+        initialVolume *= 100;
 
-        ILaunchpad.PlaceTokensInput memory input = ILaunchpad.PlaceTokensInput({
+        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
             price: price,
-            token: address(testToken),
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
             volumeForYieldStakers: volumeForYieldStakers,
-            timeOfEndRegistration: timeOfEndRegistration,
             addressForCollected: addressForCollected,
+            volume: initialVolume,
+            registrationStart: block.timestamp + 1,
+            registrationEnd: timeOfEndRegistration,
+            publicSaleStart: timeOfEndRegistration + 21,
+            fcfsSaleStart: type(uint256).max - 3,
+            saleEnd: type(uint256).max - 2,
+            tgeStart: type(uint256).max - 1,
+            vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
-            tgePercent: uint8(tgePercent)
+            tgePercent: uint8(tgePercent),
+            initialized: true,
+            lowTiersWeightsSum: 0,
+            highTiersWeightsSum: 0,
+            tokenDecimals: 18
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, initialVolume + 1);
         testToken.approve(address(launchpad), initialVolume + 1);
-        launchpad.placeTokens(input);
+        launchpad.placeTokens(input, address(testToken));
         vm.stopPrank();
+        vm.warp(block.timestamp + 1);
         _;
     }
 
@@ -175,8 +196,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.prank(user);
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
 
-        vm.prank(admin);
-        launchpad.endRegistration(address(testToken));
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        vm.warp(placedToken.registrationEnd);
         _;
     }
 
@@ -199,8 +221,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.prank(user4);
         launchpad.register(address(testToken), tier2, amountOfTokens2, signature);
 
-        vm.prank(admin);
-        launchpad.endRegistration(address(testToken));
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        vm.warp(placedToken.registrationEnd);
         _;
     }
 
@@ -222,23 +245,12 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_InvalidStatus() public placeTokens register {
         uint256 volume = 1e18;
 
-        vm.startPrank(user);
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
+        vm.warp(placedToken.saleEnd);
+
+        vm.startPrank(user);
         vm.expectRevert("BlastUP: invalid status");
-        launchpad.buyTokens(address(testToken), address(USDB), volume, user);
-
-        vm.stopPrank();
-    }
-
-    function test_RevertBuyTokens_RoundEnded() public placeTokens register {
-        uint256 volume = 1e18;
-
-        vm.prank(admin);
-        launchpad.startPublicSale(address(testToken), block.timestamp + 100);
-        vm.warp(block.timestamp + 800);
-
-        vm.startPrank(user);
-        vm.expectRevert("BlastUP: round is ended");
         launchpad.buyTokens(address(testToken), address(USDB), volume, user);
         vm.stopPrank();
     }
@@ -246,8 +258,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_VolumeIsZero() public placeTokens register {
         uint256 volume = 0;
 
-        vm.prank(admin);
-        launchpad.startPublicSale(address(testToken), block.timestamp + 100);
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        vm.warp(placedToken.publicSaleStart);
 
         vm.startPrank(user);
 
@@ -260,8 +273,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_ReceiverMustBeTheSender() public placeTokens register {
         uint256 volume = 100e18;
 
-        vm.prank(admin);
-        launchpad.startPublicSale(address(testToken), block.timestamp + 100);
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        vm.warp(placedToken.publicSaleStart);
 
         vm.startPrank(user);
         USDB.mint(user, volume + 1);
@@ -275,8 +289,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_NotEnoughAllocation() public placeTokens register {
         uint256 volume = 100e18;
 
-        vm.prank(admin);
-        launchpad.startPublicSale(address(testToken), block.timestamp + 100);
+        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        vm.warp(placedToken.publicSaleStart);
 
         vm.startPrank(user2);
         USDB.mint(user2, volume + 1);
@@ -284,34 +299,6 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.expectRevert("BlastUP: You have not enough allocation");
         launchpad.buyTokens(address(testToken), address(USDB), volume, user2);
 
-        vm.stopPrank();
-    }
-
-    function test_RevertSetVestingStartTimestamp() public placeTokens register {
-        vm.startPrank(admin);
-        launchpad.startPublicSale(address(testToken), block.timestamp + 10);
-        launchpad.endSale(address(testToken));
-        vm.warp(block.timestamp + 10);
-        vm.expectRevert("BlastUP: invalid vesting start timestamp");
-        launchpad.setVestingStartTimestamp(address(testToken), block.timestamp - 5);
-        launchpad.setVestingStartTimestamp(address(testToken), block.timestamp + 600);
-        vm.warp(block.timestamp + 601);
-        vm.expectRevert("BlastUP: vesting already started");
-        launchpad.setVestingStartTimestamp(address(testToken), block.timestamp + 10);
-        vm.stopPrank();
-    }
-
-    function test_RevertSetTgeTimestamp() public placeTokens register {
-        vm.startPrank(admin);
-        launchpad.startPublicSale(address(testToken), block.timestamp + 10);
-        launchpad.endSale(address(testToken));
-        vm.warp(block.timestamp + 10);
-        vm.expectRevert("BlastUP: invalid tge timestamp");
-        launchpad.setTgeTimestamp(address(testToken), block.timestamp - 5);
-        launchpad.setTgeTimestamp(address(testToken), block.timestamp + 600);
-        vm.warp(block.timestamp + 601);
-        vm.expectRevert("BlastUP: tge already started");
-        launchpad.setTgeTimestamp(address(testToken), block.timestamp + 10);
         vm.stopPrank();
     }
 
@@ -330,12 +317,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
         registerFuzz(amountOfTokens, amountOfTokens2)
         stake
     {
-        uint256 endTimeOfTheCurrentRound = block.timestamp + 10;
-
-        vm.prank(admin);
-        launchpad.startPublicSale(address(testToken), endTimeOfTheCurrentRound);
-
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+
+        vm.warp(placedToken.publicSaleStart);
 
         uint256 sumLowTiersUsersAllowedAllocation = launchpad.userAllowedAllocation(address(testToken), user);
         assertApproxEqAbs(sumLowTiersUsersAllowedAllocation, placedToken.initialVolumeForLowTiers, 10);
@@ -352,9 +336,10 @@ contract BuyTokensTest is BaseLaunchpadTest {
         _buyFromStaking(placedToken, user6, address(WETH));
 
         // START FCFS ROUND
-
         vm.prank(admin);
-        launchpad.startFCFSSale(address(testToken), block.timestamp + 15);
+        launchpad.setFCFSSaleStart(address(testToken), placedToken.publicSaleStart + 10);
+
+        vm.warp(placedToken.publicSaleStart + 10);
 
         vm.startPrank(user);
         uint256 volume = 100;
@@ -398,9 +383,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
         // endSale
 
         vm.startPrank(admin);
-        launchpad.endSale(address(testToken));
-        vm.expectRevert("BlastUp: invalid status");
-        launchpad.endSale(address(testToken));
+        launchpad.setSaleEnd(address(testToken), placedToken.publicSaleStart + 20);
+        vm.warp(placedToken.publicSaleStart + 20);
 
         assertEq(launchpad.getClaimableAmount(address(testToken), user), 0);
 
@@ -408,11 +392,11 @@ contract BuyTokensTest is BaseLaunchpadTest {
         userInfo = launchpad.userInfo(address(testToken), user);
         placedToken = launchpad.getPlacedToken(address(testToken));
 
-        launchpad.setTgeTimestamp(address(testToken), placedToken.currentStateEnd + 5);
+        launchpad.setTgeStart(address(testToken), placedToken.saleEnd + 5);
         assertEq(launchpad.getClaimableAmount(address(testToken), user), 0);
         vm.stopPrank();
 
-        vm.warp(placedToken.currentStateEnd + 6);
+        vm.warp(placedToken.saleEnd + 6);
 
         if (placedToken.tgePercent > 0) {
             assertEq(
@@ -424,22 +408,21 @@ contract BuyTokensTest is BaseLaunchpadTest {
             _usersClaimRewardsTge(user3);
             _usersClaimRewardsTge(user5);
         }
-        vm.startPrank(admin);
+        vm.prank(admin);
         // set vesting start timestamp +5 seconds from now
-        launchpad.setVestingStartTimestamp(address(testToken), block.timestamp + 5);
-        vm.stopPrank();
+        launchpad.setVestingStart(address(testToken), block.timestamp + 5);
 
         placedToken = launchpad.getPlacedToken(address(testToken));
         uint256 user4_claimableAmountBeforeVesting = launchpad.getClaimableAmount(address(testToken), user4);
         uint256 user6_claimableAmountBeforeVesting = launchpad.getClaimableAmount(address(testToken), user6);
 
         if (placedToken.tgePercent < 100) {
-            vm.warp(placedToken.vestingStartTimestamp + placedToken.vestingDuration / 2);
+            vm.warp(placedToken.vestingStart + placedToken.vestingDuration / 2);
             _checkClaimableAmountDuringTheVestingPeriod(user4, user4_claimableAmountBeforeVesting);
             _checkClaimableAmountDuringTheVestingPeriod(user6, user6_claimableAmountBeforeVesting);
         }
 
-        vm.warp(placedToken.vestingStartTimestamp + placedToken.vestingDuration + 1);
+        vm.warp(placedToken.vestingStart + placedToken.vestingDuration + 1);
 
         _checkClaimableAmountAfterTheVestingPeriod(user4);
         _checkClaimableAmountAfterTheVestingPeriod(user6);

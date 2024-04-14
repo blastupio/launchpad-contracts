@@ -201,12 +201,12 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     }
 
     function setFCFSSaleStart(address token, uint256 _fcfsSaleStart) external onlyOperatorOrOwner {
-        require(_fcfsSaleStart > block.timestamp, "BlastUP: invalid tge timestamp");
+        require(_fcfsSaleStart > block.timestamp, "BlastUP: invalid fcfs start timestamp");
         placedTokens[token].fcfsSaleStart = _fcfsSaleStart;
     }
 
     function setSaleEnd(address token, uint256 _saleEnd) external onlyOperatorOrOwner {
-        require(_saleEnd > block.timestamp, "BlastUP: invalid tge timestamp");
+        require(_saleEnd > block.timestamp, "BlastUP: invalid sale end timestamp");
         placedTokens[token].saleEnd = _saleEnd;
     }
 
@@ -216,28 +216,29 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         placedTokens[token].tgeStart = _tgeStart;
     }
 
-    function setVestingStartTimestamp(address token, uint256 _vestingStart) external onlyOperatorOrOwner {
+    function setVestingStart(address token, uint256 _vestingStart) external onlyOperatorOrOwner {
         require(_vestingStart > block.timestamp, "BlastUP: invalid vesting start timestamp");
 
         placedTokens[token].vestingStart = _vestingStart;
     }
 
     function placeTokens(PlacedToken memory _placedToken, address token) external onlyOwner {
-        require(!placedTokens[token].initialized, "BlastUp: This token was already placed");
+        require(!placedTokens[token].initialized, "BlastUP: This token was already placed");
 
         uint256 sumVolume = _placedToken.initialVolumeForHighTiers + _placedToken.initialVolumeForLowTiers
             + _placedToken.volumeForYieldStakers;
         require(sumVolume > 0, "BlastUP: initial Volume must be > 0");
-        require(_placedToken.tokenDecimals == IERC20Metadata(token).decimals());
-        require(_placedToken.registrationStart > block.timestamp);
+        require(_placedToken.tokenDecimals == IERC20Metadata(token).decimals(), "BlastUP: invalid decimals");
         require(
-            _placedToken.registrationEnd > _placedToken.registrationStart
+            _placedToken.registrationStart > block.timestamp
+                && _placedToken.registrationEnd > _placedToken.registrationStart
                 && _placedToken.publicSaleStart > _placedToken.registrationEnd
                 && _placedToken.fcfsSaleStart > _placedToken.publicSaleStart
                 && _placedToken.saleEnd > _placedToken.fcfsSaleStart && _placedToken.tgeStart > _placedToken.saleEnd
-                && _placedToken.vestingStart > _placedToken.tgeStart
+                && _placedToken.vestingStart > _placedToken.tgeStart,
+                "BlastUP: invalid timestamps"
         );
-        require(_placedToken.volume == sumVolume);
+        require(_placedToken.volume == sumVolume, "BlastUP: sum of initial volumes must be equal to volume param");
 
         placedTokens[token] = _placedToken;
 
@@ -324,9 +325,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     function claimRemainders(address token) external onlyOperatorOrOwner {
         PlacedToken storage placedToken = placedTokens[token];
 
-        require(getStatus(token) == SaleStatus.POST_SALE, "BlastUp: invalid status");
+        require(getStatus(token) == SaleStatus.POST_SALE, "BlastUP: invalid status");
 
-        uint256 volume = placedToken.volume + placedToken.volumeForYieldStakers;
+        uint256 volume = placedToken.volume;
 
         placedToken.volume = 0;
         placedToken.volumeForYieldStakers = 0;

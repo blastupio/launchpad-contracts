@@ -11,12 +11,15 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         super.setUp();
         handler = new LaunchpadHandler(launchpad, address(USDB), address(WETH), adminPrivateKey);
 
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](8);
         selectors[0] = LaunchpadHandler.buyTokens.selector;
         selectors[1] = LaunchpadHandler.claimTokens.selector;
-        selectors[2] = LaunchpadHandler.startFCFSSale.selector;
-        selectors[3] = LaunchpadHandler.endSale.selector;
-        selectors[4] = LaunchpadHandler.placeTokens.selector;
+        selectors[2] = LaunchpadHandler.claimRemainders.selector;
+        selectors[3] = LaunchpadHandler.placeTokens.selector;
+        selectors[4] = LaunchpadHandler.setVestingStart.selector;
+        selectors[5] = LaunchpadHandler.setTgeStart.selector;
+        selectors[6] = LaunchpadHandler.setSaleEnd.selector;
+        selectors[7] = LaunchpadHandler.setFCFSSaleStart.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
