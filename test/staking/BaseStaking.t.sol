@@ -6,7 +6,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {YieldStaking} from "../../src/YieldStaking.sol";
 import {Launchpad} from "../../src/Launchpad.sol";
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 

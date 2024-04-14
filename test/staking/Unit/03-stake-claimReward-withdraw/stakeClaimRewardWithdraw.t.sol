@@ -1,42 +1,37 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseStakingTest, YieldStaking} from "../../BaseStaking.t.sol";
+import {BaseStakingTest, YieldStaking, IERC20} from "../../BaseStaking.t.sol";
 
 contract StakeClaimRewardWithdrawTest is BaseStakingTest {
     modifier setMinTimeToWithdrawMuchGreaterThenNow() {
         uint256 _minTimeToClaim = block.timestamp + 1000;
 
-        vm.startPrank(admin);
+        vm.prank(admin);
         staking.setMinTimeToWithdraw(_minTimeToClaim);
-        vm.stopPrank();
         _;
     }
 
     modifier stakeAndClaimUSDB() {
         vm.startPrank(user);
-
         USDB.mint(user, 100 * 10 ** 19);
         USDB.approve(address(staking), type(uint256).max);
 
         staking.stake(address(USDB), 2e18);
         (, uint256 reward) = staking.balanceAndRewards(address(USDB), user);
         staking.claimReward(address(USDB), address(USDB), reward, false);
-
         vm.stopPrank();
         _;
     }
 
     modifier stakeAndClaimWETH() {
         vm.startPrank(user);
-
         WETH.mint(user, 100 * 10 ** 19);
         WETH.approve(address(staking), type(uint256).max);
 
         staking.stake(address(WETH), 2e18);
         (, uint256 reward) = staking.balanceAndRewards(address(WETH), user);
         staking.claimReward(address(WETH), address(WETH), reward, false);
-
         vm.stopPrank();
         _;
     }
@@ -88,13 +83,23 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
         _;
     }
 
+    function _checkClaimReward(address _user, address _token, bool _getETH) internal {
+        (, uint256 reward) = staking.balanceAndRewards(_token, _user);
+        uint256 balanceOfUserBefore = _getETH ? _user.balance : IERC20(_token).balanceOf(_user);
+        vm.prank(_user);
+        staking.claimReward(_token, _token, reward, _getETH);
+        if (_getETH) {
+            assertEq(balanceOfUserBefore + reward, _user.balance);
+        } else {
+            assertEq(balanceOfUserBefore + reward, IERC20(_token).balanceOf(_user));
+        }
+    }
+
     function test_RevertWithdraw_InvalidPool() public stakeAndClaimUSDB {
         vm.startPrank(user);
-
         vm.expectRevert(abi.encodeWithSelector(YieldStaking.InvalidPool.selector, address(testToken)));
 
         staking.withdraw(address(testToken), 1e18, false);
-
         vm.stopPrank();
     }
 
@@ -104,7 +109,6 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
 
         vm.expectRevert("BlastUP: you must wait more time");
         staking.withdraw(address(USDB), balance, false);
-
         vm.stopPrank();
     }
 
@@ -114,7 +118,6 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
 
         vm.expectRevert("BlastUP: you do not have enough balance");
         staking.withdraw(address(USDB), balance + 10, false);
-
         vm.stopPrank();
     }
 
@@ -122,37 +125,9 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
         public
         stakeFuzz(amount, amount2, amount3)
     {
-        (, uint256 reward) = staking.balanceAndRewards(address(USDB), user);
-
-        vm.startPrank(user);
-        uint256 balanceOfUserBefore = USDB.balanceOf(user);
-        staking.claimReward(address(USDB), address(USDB), reward, false);
-
-        assertEq(balanceOfUserBefore + reward, USDB.balanceOf(user));
-
-        (, uint256 reward2) = staking.balanceAndRewards(address(USDB), user2);
-        vm.stopPrank();
-        vm.startPrank(user2);
-        uint256 balanceOfUser2Before = user2.balance;
-        staking.claimReward(address(WETH), address(WETH), reward2, true);
-
-        assertEq(balanceOfUser2Before + reward2, user2.balance);
-
-        (, uint256 reward3) = staking.balanceAndRewards(address(USDB), user3);
-        vm.stopPrank();
-        vm.prank(user3);
-        uint256 balanceOfUser3Before = WETH.balanceOf(user3);
-        staking.claimReward(address(WETH), address(WETH), reward3, false);
-
-        assertEq(balanceOfUser3Before + reward3, user3.balance);
-
-        (uint256 balance4,) = staking.balanceAndRewards(address(USDB), user4);
-
-        vm.startPrank(user4);
-        uint256 balanceOfUser4Before = USDB.balanceOf(user4);
-        staking.withdraw(address(USDB), balance4, false);
-
-        assertEq(balanceOfUser4Before + balance4, USDB.balanceOf(user4));
-        vm.stopPrank();
+        _checkClaimReward(user, address(USDB), false);
+        _checkClaimReward(user2, address(WETH), true);
+        _checkClaimReward(user3, address(WETH), false);
+        _checkClaimReward(user4, address(USDB), false);
     }
 }

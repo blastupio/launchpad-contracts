@@ -185,7 +185,6 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
 
     function test_endRegistration_CheckOperators() public placeTokens {
         vm.startPrank(user);
-
         vm.expectRevert();
         launchpad.endRegistration(address(testToken));
         vm.stopPrank();
