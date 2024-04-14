@@ -23,6 +23,7 @@ interface ILaunchpad {
 
     enum SaleStatus {
         NOT_PLACED,
+        BEFORE_REGISTARTION,
         REGISTRATION,
         POST_REGISTRATION,
         PUBLIC_SALE,
@@ -33,39 +34,31 @@ interface ILaunchpad {
     struct PlacedToken {
         uint256 price; // in USDB
         uint256 volumeForYieldStakers;
-        uint256 volumeForLowTiers;
-        uint256 volumeForHighTiers;
+        uint256 volume;
         uint256 initialVolumeForLowTiers;
         uint256 initialVolumeForHighTiers;
         uint256 lowTiersWeightsSum;
         uint256 highTiersWeightsSum;
         uint8 tokenDecimals;
         address addressForCollected;
-        SaleStatus status;
-        uint256 currentStateEnd;
-        uint256 vestingStartTimestamp;
-        uint256 vestingDuration;
-        uint256 tgeTimestamp;
-        uint8 tgePercent;
-    }
-
-    struct PlaceTokensInput {
-        uint256 price;
-        address token;
-        uint256 volumeForYieldStakers;
-        uint256 initialVolumeForHighTiers;
-        uint256 initialVolumeForLowTiers;
-        uint256 timeOfEndRegistration;
-        address addressForCollected;
+        uint256 registrationStart;
+        uint256 registrationEnd;
+        uint256 publicSaleStart;
+        uint256 fcfsSaleStart;
+        uint256 saleEnd;
+        uint256 tgeStart;
+        uint256 vestingStart;
         uint256 vestingDuration;
         uint8 tgePercent;
+        bool initialized;
     }
 
     function userInfo(address token, address user) external view returns (User memory);
     function userAllowedAllocation(address token, address user) external view returns (uint256);
     function getClaimableAmount(address token, address user) external view returns (uint256);
+    function getStatus(address token) external view returns (SaleStatus);
 
-    function placeTokens(PlaceTokensInput memory input) external;
+    function placeTokens(PlacedToken memory _placedToken, address token) external;
 
     function register(address token, UserTiers tier, uint256 amountOfTokens, bytes memory signature) external;
 

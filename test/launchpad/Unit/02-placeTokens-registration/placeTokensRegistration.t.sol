@@ -115,7 +115,6 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 amountOfTokens = 2000; // BLP
         ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
 
-        
         bytes memory signature = _getSignature(user, amountOfTokens);
         vm.prank(admin);
         launchpad.endRegistration(address(testToken));
