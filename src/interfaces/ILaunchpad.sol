@@ -39,7 +39,6 @@ interface ILaunchpad {
         uint256 initialVolumeForHighTiers;
         uint256 lowTiersWeightsSum;
         uint256 highTiersWeightsSum;
-        uint8 tokenDecimals;
         address addressForCollected;
         uint256 registrationStart;
         uint256 registrationEnd;
@@ -49,6 +48,7 @@ interface ILaunchpad {
         uint256 tgeStart;
         uint256 vestingStart;
         uint256 vestingDuration;
+        uint8 tokenDecimals;
         uint8 tgePercent;
         bool initialized;
     }

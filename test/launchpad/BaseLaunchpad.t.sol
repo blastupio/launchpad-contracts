@@ -29,6 +29,8 @@ contract BaseLaunchpadTest is Test {
 
     address internal admin;
     uint256 internal adminPrivateKey;
+    address signer;
+    uint256 internal signerPrivateKey;
     address user;
     address user2;
     address user3;
@@ -41,7 +43,9 @@ contract BaseLaunchpadTest is Test {
 
     function setUp() public virtual {
         adminPrivateKey = 0xa11ce;
+        signerPrivateKey = 0xa3f9a14bc;
         admin = vm.addr(adminPrivateKey);
+        signer = vm.addr(signerPrivateKey);
         user = address(10);
         user2 = address(11);
         user3 = address(12);

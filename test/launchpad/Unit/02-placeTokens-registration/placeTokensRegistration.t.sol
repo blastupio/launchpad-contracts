@@ -109,6 +109,89 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         _;
     }
 
+    function test_timestampSetters() public placeTokens {
+        address token = address(testToken);
+
+        vm.startPrank(user);
+        vm.expectRevert();
+        launchpad.setRegistrationStart(token, block.timestamp + 10);
+
+        vm.expectRevert();
+        launchpad.setRegistrationEnd(token, block.timestamp + 100);
+
+        vm.expectRevert();
+        launchpad.setPublicSaleStart(token, block.timestamp + 100);
+
+        vm.expectRevert();
+        launchpad.setFCFSSaleStart(token, block.timestamp + 100);
+
+        vm.expectRevert();
+        launchpad.setSaleEnd(token, block.timestamp + 100);
+
+        vm.expectRevert();
+        launchpad.setVestingStart(token, block.timestamp + 100);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+
+        launchpad.setRegistrationStart(token, block.timestamp + 10);
+        launchpad.setRegistrationEnd(token, block.timestamp + 101);
+        launchpad.setPublicSaleStart(token, block.timestamp + 102);
+        launchpad.setFCFSSaleStart(token, block.timestamp + 103);
+        launchpad.setSaleEnd(token, block.timestamp + 104);
+        launchpad.setVestingStart(token, block.timestamp + 105);
+        
+        vm.stopPrank();
+    }
+
+    function test_weightsSetters() public placeTokens {
+        uint256[6] memory weights = [uint256(10), 40, 50, 25, 30, 45];
+        uint256[6] memory amounts = [uint256(3_000), 7_000, 10_000, 30_000, 50_000, 100_000];
+
+        vm.startPrank(user);
+        vm.expectRevert();
+        launchpad.setWeightsForTiers(weights);
+
+        vm.expectRevert();
+        launchpad.setMinAmountsForTiers(amounts);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        launchpad.setWeightsForTiers(weights);
+        launchpad.setMinAmountsForTiers(amounts);
+
+        launchpad.setOperator(user);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        launchpad.setWeightsForTiers(weights);
+        launchpad.setMinAmountsForTiers(amounts);
+        vm.stopPrank();
+    }
+
+    function test_signerSetter() public placeTokens {
+        uint256 amountOfTokens = 2000; // BLP
+        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+
+        vm.startPrank(user);
+        bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
+            .toEthSignedMessageHash();
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert("BlastUP: Invalid signature");
+        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        launchpad.setSigner(signer);
+        vm.stopPrank();
+
+        vm.prank(user);
+        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+    }
+
     function test_RevertRegistration_InvalidSignature() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
         ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;

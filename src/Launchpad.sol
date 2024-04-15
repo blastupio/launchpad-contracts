@@ -176,13 +176,13 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         minAmountForTier[UserTiers.DIAMOND] = amounts[5];
     }
 
-    function setWeightsForTiers(uint256[6] memory tiers) external onlyOperatorOrOwner {
-        weightForTier[UserTiers.BRONZE] = tiers[0];
-        weightForTier[UserTiers.SILVER] = tiers[1];
-        weightForTier[UserTiers.GOLD] = tiers[2];
-        weightForTier[UserTiers.TITANIUM] = tiers[3];
-        weightForTier[UserTiers.PLATINUM] = tiers[4];
-        weightForTier[UserTiers.DIAMOND] = tiers[5];
+    function setWeightsForTiers(uint256[6] memory weights) external onlyOperatorOrOwner {
+        weightForTier[UserTiers.BRONZE] = weights[0];
+        weightForTier[UserTiers.SILVER] = weights[1];
+        weightForTier[UserTiers.GOLD] = weights[2];
+        weightForTier[UserTiers.TITANIUM] = weights[3];
+        weightForTier[UserTiers.PLATINUM] = weights[4];
+        weightForTier[UserTiers.DIAMOND] = weights[5];
     }
 
     function setRegistrationStart(address token, uint256 _registrationStart) external onlyOperatorOrOwner {

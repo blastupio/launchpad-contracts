@@ -71,10 +71,6 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     modifier useToken(uint256 tokenIndexSeed) {
         currentToken = _tokens.randToken(tokenIndexSeed);
         vm.assume(currentToken != address(0));
-        // if (currentToken == address(0)) {
-        //     currentToken = address(new ERC20Mock("Token", "TKNN", 18));
-        //     _tokens.add(currentToken);
-        // }
         _;
     }
 
