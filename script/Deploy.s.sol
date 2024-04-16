@@ -22,7 +22,7 @@ import {ERC20RebasingMock} from "../src/mocks/ERC20RebasingMock.sol";
 contract DeployScript is Script {
     using SafeERC20 for IERC20;
 
-    function _deploy(address blp, address WETH, address USDB, address oracle) public {
+    function _deploy(address WETH, address USDB, address oracle) public {
         // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         // address admin = vm.addr(deployerPrivateKey);
         (, address admin,) = vm.readCallers();
@@ -52,8 +52,6 @@ contract DeployScript is Script {
 
         console2.log("launchpad ", address(launchpad));
         console2.log("staking: ", address(staking));
-        console2.log("blp: ", blp);
-        console2.log("oracle: ", oracle);
     }
     
     // deploy testnet 
@@ -62,10 +60,9 @@ contract DeployScript is Script {
 
         address USDB = 0x4200000000000000000000000000000000000022;
         address WETH = 	0x4200000000000000000000000000000000000023;
-        ERC20Mock blp = new ERC20Mock("BlastUp", "BLP", 18);
-        OracleMock oracle = new OracleMock();
+        address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
 
-        _deploy(address(blp), WETH, USDB, address(oracle));
+        _deploy(WETH, USDB, oracle);
 
         vm.stopBroadcast();
     }
