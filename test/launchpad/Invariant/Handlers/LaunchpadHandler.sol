@@ -186,9 +186,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
         ILaunchpad.SaleStatus status = launchpad.getStatus(address(currentToken));
 
-        vm.assume(
-            status == ILaunchpad.SaleStatus.PUBLIC_SALE || status == ILaunchpad.SaleStatus.FCFS_SALE
-        );
+        vm.assume(status == ILaunchpad.SaleStatus.PUBLIC_SALE || status == ILaunchpad.SaleStatus.FCFS_SALE);
 
         address paymentContract = WETHOrUSDB ? usdb : weth;
         uint256 allowedAllocation = launchpad.userAllowedAllocation(currentToken, currentActor);

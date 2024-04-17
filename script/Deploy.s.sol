@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.1;
 
-import {Script, console2} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {YieldStaking} from "../src/YieldStaking.sol";
 import {Launchpad, MessageHashUtils, ECDSA} from "../src/Launchpad.sol";
@@ -23,18 +23,16 @@ contract DeployScript is Script {
     using SafeERC20 for IERC20;
 
     function _deploy(address WETH, address USDB, address oracle) public {
-        // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        // address admin = vm.addr(deployerPrivateKey);
-        (, address admin,) = vm.readCallers();
+        (, address deployer,) = vm.readCallers();
 
-        uint256 nonce = vm.getNonce(admin);
-        address stakingAddress = vm.computeCreateAddress(admin, nonce + 3);
+        uint256 nonce = vm.getNonce(deployer);
+        address stakingAddress = vm.computeCreateAddress(deployer, nonce + 3);
         Launchpad launchpad = Launchpad(
             address(
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
-                    admin,
-                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin))
+                    deployer,
+                    abi.encodeCall(Launchpad.initialize, (deployer, deployer, deployer))
                 )
             )
         );
@@ -43,23 +41,22 @@ contract DeployScript is Script {
                 address(
                     new TransparentUpgradeableProxy(
                         address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
-                        admin,
-                        abi.encodeCall(YieldStaking.initialize, (admin))
+                        deployer,
+                        abi.encodeCall(YieldStaking.initialize, (deployer))
                     )
                 )
             )
         );
 
-        console2.log("launchpad ", address(launchpad));
-        console2.log("staking: ", address(staking));
+        console.log("launchpad ", address(launchpad));
+        console.log("staking: ", address(staking));
     }
-    
-    // deploy testnet 
-    function run() public {
+
+    function deploySepolia() public {
         vm.startBroadcast();
 
         address USDB = 0x4200000000000000000000000000000000000022;
-        address WETH = 	0x4200000000000000000000000000000000000023;
+        address WETH = 0x4200000000000000000000000000000000000023;
         address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
 
         _deploy(WETH, USDB, oracle);

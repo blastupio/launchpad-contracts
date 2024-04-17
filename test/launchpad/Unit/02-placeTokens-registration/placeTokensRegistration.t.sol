@@ -140,7 +140,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         launchpad.setFCFSSaleStart(token, block.timestamp + 103);
         launchpad.setSaleEnd(token, block.timestamp + 104);
         launchpad.setVestingStart(token, block.timestamp + 105);
-        
+
         vm.stopPrank();
     }
 

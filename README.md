@@ -49,7 +49,10 @@ forge test
 
 ### Deployment
 
-TBD soon
+To deploy contracts on Blast Sepolia testnet, run the following commands:
+```bash
+forge script DeployScript --sig 'deploySepolia()' --rpc-url https://sepolia.blast.io --broadcast --private-key <DEPLOYER_KEY>
+```
 
 ## Contact
 

@@ -235,7 +235,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
                 && _placedToken.fcfsSaleStart > _placedToken.publicSaleStart
                 && _placedToken.saleEnd > _placedToken.fcfsSaleStart && _placedToken.tgeStart > _placedToken.saleEnd
                 && _placedToken.vestingStart > _placedToken.tgeStart,
-                "BlastUP: invalid timestamps"
+            "BlastUP: invalid timestamps"
         );
         require(_placedToken.volume == sumVolume, "BlastUP: sum of initial volumes must be equal to volume param");
 
