@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseBLPStaking, ERC20Mock, BLPStaking} from "../BaseBLPStaking.t.sol";
+import {BaseBLPStaking, BLPStaking} from "../BaseBLPStaking.t.sol";
 
 contract BLPStakeTest is BaseBLPStaking {
     function test_RevertStake_invalidLockTime() public {
@@ -59,6 +59,7 @@ contract BLPStakeTest is BaseBLPStaking {
     }
 
     function test_stakeFuzz(uint256 amount, uint256 lockTime, uint8 percent) public {
+        vm.warp(1001);
         amount = bound(amount, 1e6, 1e40);
         percent = uint8(bound(percent, 1, 200));
         lockTime = bound(lockTime, 1e4, 1e15);

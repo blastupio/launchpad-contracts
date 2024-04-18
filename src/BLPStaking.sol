@@ -89,7 +89,8 @@ contract BLPStaking is Ownable {
     function claim() public returns (uint256 reward) {
         reward = getRewardOf(msg.sender);
         if (reward > 0) {
-            users[msg.sender].lastClaimTimestamp = block.timestamp;
+            UserState storage user = users[msg.sender];
+            user.lastClaimTimestamp = block.timestamp > user.unlockTimestamp ? user.unlockTimestamp : block.timestamp;
             stakeToken.safeTransfer(msg.sender, reward);
             emit Claimed(msg.sender, reward);
         }

@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseBLPStaking, ERC20Mock, BLPStaking} from "../BaseBLPStaking.t.sol";
+import {BaseBLPStaking, BLPStaking} from "../BaseBLPStaking.t.sol";
 
 contract BLPWithdrawClaimTest is BaseBLPStaking {
     modifier stake() {
         uint256 amount = 1e18;
         uint256 lockTime = 100;
+        uint8 percent = 10;
+
+        uint256 preClaculatedReward = (amount * percent * 1e16 / 1e18) * lockTime / 365 days;
 
         blp.mint(user, amount);
+        blp.mint(address(stakingBLP), preClaculatedReward);
 
         vm.prank(admin);
-        stakingBLP.setLockTimeToPercent(lockTime, 10);
+        stakingBLP.setLockTimeToPercent(lockTime, percent);
 
         vm.startPrank(user);
         blp.approve(address(stakingBLP), amount);
@@ -25,7 +29,10 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
         percent = uint8(bound(percent, 1, 200));
         lockTime = bound(lockTime, 1e4, 1e15);
 
+        uint256 preClaculatedReward = (amount * percent * 1e16 / 1e18) * lockTime / 365 days;
+
         blp.mint(user, amount);
+        blp.mint(address(stakingBLP), preClaculatedReward);
 
         vm.prank(admin);
         stakingBLP.setLockTimeToPercent(lockTime, percent);

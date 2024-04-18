@@ -7,10 +7,8 @@ import {StdUtils} from "forge-std/StdUtils.sol";
 import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
 import {
-    BaseLaunchpadTest,
     Launchpad,
     ERC20Mock,
-    ERC20RebasingMock,
     ILaunchpad,
     MessageHashUtils,
     ECDSA
@@ -49,12 +47,6 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
     function getPlacedTokenInvariants(address token) external view returns (PlacedTokenInvariants memory) {
         return ghost_placedToken[token];
-    }
-
-    modifier createActor() {
-        currentActor = msg.sender;
-        _actors.add(msg.sender);
-        _;
     }
 
     modifier createToken() {

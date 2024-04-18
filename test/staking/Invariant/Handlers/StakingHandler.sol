@@ -5,7 +5,6 @@ import {CommonBase} from "forge-std/Base.sol";
 import {StdAssertions} from "forge-std/StdAssertions.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
-import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
 import {BaseStakingTest, YieldStaking, WadMath, ERC20Mock, ERC20RebasingMock} from "../../BaseStaking.t.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

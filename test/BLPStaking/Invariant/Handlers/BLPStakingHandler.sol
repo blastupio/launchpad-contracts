@@ -9,7 +9,6 @@ import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
 import {BaseBLPStaking, BLPStaking, ERC20Mock} from "../../BaseBLPStaking.t.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {WadMath} from "../../../../src/libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
@@ -21,17 +20,14 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
     uint256 public ghost_stakedSum;
     uint256 public ghost_rewardsClaimed;
+    uint256 public ghost_balanceForRewards;
+    mapping(address => uint256) public ghost_userPreCalculatedRewards;
+    mapping(address => uint256) public ghost_userRealClaimedRewards;
 
     mapping(bytes32 => uint256) public calls;
 
     AddressSet internal _actors;
     address internal currentActor;
-
-    modifier createActor() {
-        currentActor = msg.sender;
-        _actors.add(msg.sender);
-        _;
-    }
 
     modifier useActor(uint256 actorIndexSeed) {
         currentActor = _actors.rand(actorIndexSeed);
@@ -43,12 +39,20 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         _;
     }
 
+    function forEachActor(function(address) external view func) public {
+        return _actors.forEach(func);
+    }
+
     constructor(BLPStaking _staking, ERC20Mock _blp) {
         staking = _staking;
         blp = _blp;
     }
 
-    function stake(uint256 amount, uint256 lockTime, uint8 percent) public createActor countCall("stake") {
+    function stake(uint256 actorSeed, uint256 amount, uint256 lockTime, uint8 percent)
+        public
+        useActor(actorSeed)
+        countCall("stake")
+    {
         amount = bound(amount, 1e6, 1e40);
         percent = uint8(bound(percent, 1, 200));
         lockTime = bound(lockTime, 1e4, 1e15);
@@ -63,7 +67,14 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         if (balance > 0) {
             uint256 reward = staking.getRewardOf(currentActor);
             ghost_rewardsClaimed += reward;
+            ghost_userRealClaimedRewards[currentActor] += reward;
         }
+
+        uint256 preClaculatedReward = ((balance + amount) * percent * 1e16 / 1e18) * lockTime / 365 days;
+
+        ghost_userPreCalculatedRewards[currentActor] += preClaculatedReward;
+        blp.mint(address(staking), preClaculatedReward);
+        ghost_balanceForRewards += preClaculatedReward;
 
         vm.startPrank(currentActor);
         blp.approve(address(staking), amount);
@@ -73,7 +84,7 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         ghost_stakedSum += amount;
     }
 
-    function withdraw(uint256 actorSeed) public useActor(actorSeed) {
+    function withdraw(uint256 actorSeed) public useActor(actorSeed) countCall("withdraw") {
         uint256 reward = staking.getRewardOf(currentActor);
         (uint256 balance,, uint256 unlockTimestamp,) = staking.users(currentActor);
 
@@ -85,20 +96,18 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
         ghost_stakedSum -= balance;
         ghost_rewardsClaimed += reward;
+        ghost_userRealClaimedRewards[currentActor] += reward;
     }
 
-    function claim(uint256 actorSeed) public useActor(actorSeed) {
+    function claim(uint256 actorSeed) public useActor(actorSeed) countCall("claim") {
         uint256 reward = staking.getRewardOf(currentActor);
         vm.prank(currentActor);
         staking.claim();
         ghost_rewardsClaimed += reward;
+        ghost_userRealClaimedRewards[currentActor] += reward;
     }
 
-    function forceWithdrawAll(uint256 actorSeed)
-        public
-        useActor(actorSeed)
-        countCall("forceWithdrawAll")
-    {
+    function forceWithdrawAll(uint256 actorSeed) public useActor(actorSeed) countCall("forceWithdrawAll") {
         (uint256 balance,, uint256 unlockTimestamp,) = staking.users(currentActor);
         vm.assume(balance > 0);
         if (block.timestamp < unlockTimestamp) {
@@ -109,6 +118,7 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
         ghost_stakedSum -= balance;
         ghost_rewardsClaimed += reward;
+        ghost_userRealClaimedRewards[currentActor] += reward;
 
         vm.prank(currentActor);
         staking.withdraw();

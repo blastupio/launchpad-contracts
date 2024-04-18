@@ -46,7 +46,6 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
         amount4 = bound(amount4, 10, 1e36);
 
         // user
-
         USDB.mint(user, amount);
         vm.prank(user);
         USDB.approve(address(staking), amount);
@@ -58,17 +57,14 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
         WETH.approve(address(staking), amount2);
 
         // user3
-
         vm.deal(user3, amount3);
 
         // user4
-
         USDB.mint(user4, amount4);
         vm.prank(user4);
         USDB.approve(address(staking), amount4);
 
         // stake
-
         vm.prank(user);
         staking.stake(address(USDB), amount);
 
