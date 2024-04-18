@@ -75,6 +75,9 @@ contract BLPStakeTest is BaseBLPStaking {
         stakingBLP.stake(amount, lockTime);
         vm.stopPrank();
 
+        uint256 reward = stakingBLP.getRewardOf(user);
+        assertEq(reward, 0);
+
         vm.warp(lockTime * 1e6);
         assertGt(stakingBLP.getRewardOf(user), 0);
     }

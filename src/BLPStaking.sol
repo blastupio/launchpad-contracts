@@ -15,10 +15,10 @@ contract BLPStaking is Ownable {
         uint256 balance;
         uint256 lastClaimTimestamp;
         uint256 unlockTimestamp;
-        uint8 percent;
+        uint256 slope;
     }
 
-    mapping(address => UserState) users;
+    mapping(address => UserState) public users;
     mapping(uint256 => uint8) lockTimeToPercent;
 
     IERC20Metadata public stakeToken;
@@ -35,14 +35,9 @@ contract BLPStaking is Ownable {
     function getRewardOf(address addr) public view returns (uint256) {
         UserState memory user = users[addr];
 
-        uint256 slope = user.balance * user.percent * 1e16 / 1e18;
         uint256 time =
             Math.min(block.timestamp - user.lastClaimTimestamp, user.unlockTimestamp - user.lastClaimTimestamp);
-        return slope * time / 365 days;
-    }
-
-    function getUserState(address user) external view returns (UserState memory) {
-        return users[user];
+        return user.slope * time / 365 days;
     }
 
     /* ========== FUNCTIONS ========== */
@@ -55,10 +50,6 @@ contract BLPStaking is Ownable {
         lockTimeToPercent[lockTime] = percent;
     }
 
-    function removeLockTimeToPercent(uint256 lockTime) external onlyOwner {
-        delete lockTimeToPercent[lockTime];
-    }
-
     function stake(uint256 amount, uint256 lockTime) external {
         UserState storage user = users[msg.sender];
         uint256 percent = lockTimeToPercent[lockTime];
@@ -68,11 +59,13 @@ contract BLPStaking is Ownable {
 
         if (user.balance > 0) {
             claim();
+        } else {
+            user.lastClaimTimestamp = block.timestamp;
         }
 
         user.unlockTimestamp = block.timestamp + lockTime;
         user.balance += amount;
-        user.percent = lockTimeToPercent[lockTime];
+        user.slope = user.balance * percent * 1e16 / 1e18;
 
         stakeToken.safeTransferFrom(msg.sender, address(this), amount);
 
@@ -87,7 +80,7 @@ contract BLPStaking is Ownable {
 
         claim();
         uint256 balance = user.balance;
-        user.balance = 0;
+        delete users[msg.sender];
 
         stakeToken.safeTransfer(msg.sender, balance);
         emit Withdrawn(msg.sender, balance);

@@ -58,9 +58,9 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         vm.prank(staking.owner());
         staking.setLockTimeToPercent(lockTime, percent);
 
-        BLPStaking.UserState memory state = staking.getUserState(currentActor);
+        (uint256 balance,,,) = staking.users(currentActor);
 
-        if (state.balance > 0) {
+        if (balance > 0) {
             uint256 reward = staking.getRewardOf(currentActor);
             ghost_rewardsClaimed += reward;
         }
@@ -75,15 +75,15 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
     function withdraw(uint256 actorSeed) public useActor(actorSeed) {
         uint256 reward = staking.getRewardOf(currentActor);
-        BLPStaking.UserState memory state = staking.getUserState(currentActor);
+        (uint256 balance,, uint256 unlockTimestamp,) = staking.users(currentActor);
 
-        vm.assume(state.unlockTimestamp <= block.timestamp);
-        vm.assume(state.balance > 0);
+        vm.assume(unlockTimestamp <= block.timestamp);
+        vm.assume(balance > 0);
 
         vm.prank(currentActor);
         staking.withdraw();
 
-        ghost_stakedSum -= state.balance;
+        ghost_stakedSum -= balance;
         ghost_rewardsClaimed += reward;
     }
 
@@ -92,6 +92,26 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         vm.prank(currentActor);
         staking.claim();
         ghost_rewardsClaimed += reward;
+    }
+
+    function forceWithdrawAll(uint256 actorSeed)
+        public
+        useActor(actorSeed)
+        countCall("forceWithdrawAll")
+    {
+        (uint256 balance,, uint256 unlockTimestamp,) = staking.users(currentActor);
+        vm.assume(balance > 0);
+        if (block.timestamp < unlockTimestamp) {
+            vm.warp(unlockTimestamp);
+        }
+
+        uint256 reward = staking.getRewardOf(currentActor);
+
+        ghost_stakedSum -= balance;
+        ghost_rewardsClaimed += reward;
+
+        vm.prank(currentActor);
+        staking.withdraw();
     }
 
     function warp(uint256 secs) public {

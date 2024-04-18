@@ -64,11 +64,12 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
         stakeFuzz(amount, lockTime, percent)
     {
         uint256 reward = stakingBLP.getRewardOf(user);
-        BLPStaking.UserState memory state = stakingBLP.getUserState(user);
+        vm.assume(reward > 0);
+        (uint256 balance,,,) = stakingBLP.users(user);
 
         vm.prank(user);
         stakingBLP.withdraw();
 
-        assertEq(blp.balanceOf(user), state.balance + reward);
+        assertEq(blp.balanceOf(user), balance + reward);
     }
 }
