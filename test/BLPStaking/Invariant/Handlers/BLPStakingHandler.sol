@@ -48,13 +48,13 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         blp = _blp;
     }
 
-    function stake(uint256 actorSeed, uint256 amount, uint256 lockTime, uint8 percent)
+    function stake(uint256 actorSeed, uint256 amount, uint256 lockTime, uint32 percent)
         public
         useActor(actorSeed)
         countCall("stake")
     {
         amount = bound(amount, 1e6, 1e40);
-        percent = uint8(bound(percent, 1, 200));
+        percent = uint32(bound(percent, 10_000, 2_000_000));
         lockTime = bound(lockTime, 1e4, 1e15);
 
         blp.mint(currentActor, amount);
@@ -70,7 +70,7 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
             ghost_userRealClaimedRewards[currentActor] += reward;
         }
 
-        uint256 preClaculatedReward = ((balance + amount) * percent * 1e16 / 1e18) * lockTime / 365 days;
+        uint256 preClaculatedReward = ((balance + amount) * percent / 1e6) * lockTime / 365 days;
 
         ghost_userPreCalculatedRewards[currentActor] += preClaculatedReward;
         blp.mint(address(staking), preClaculatedReward);

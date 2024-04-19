@@ -53,15 +53,16 @@ contract BLPStakeTest is BaseBLPStaking {
         vm.expectEmit(address(stakingBLP));
         emit BLPStaking.Staked(user, amount);
         stakingBLP.stake(amount, lockTime);
+        assertEq(stakingBLP.totalLocked(), amount);
 
         vm.warp(1e5);
         assertGt(stakingBLP.getRewardOf(user), 0);
     }
 
-    function test_stakeFuzz(uint256 amount, uint256 lockTime, uint8 percent) public {
+    function test_stakeFuzz(uint256 amount, uint256 lockTime, uint32 percent) public {
         vm.warp(1001);
         amount = bound(amount, 1e6, 1e40);
-        percent = uint8(bound(percent, 1, 200));
+        percent = uint32(bound(percent, 10_000, 2_000_000));
         lockTime = bound(lockTime, 1e4, 1e15);
 
         blp.mint(user, amount);
@@ -75,6 +76,10 @@ contract BLPStakeTest is BaseBLPStaking {
         emit BLPStaking.Staked(user, amount);
         stakingBLP.stake(amount, lockTime);
         vm.stopPrank();
+        assertEq(stakingBLP.totalLocked(), amount);
+        vm.prank(admin);
+        vm.expectRevert("BlastUP: amount gt allowed to be withdrawn");
+        stakingBLP.withdrawFunds(amount);
 
         uint256 reward = stakingBLP.getRewardOf(user);
         assertEq(reward, 0);

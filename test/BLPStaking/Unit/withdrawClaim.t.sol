@@ -7,9 +7,9 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
     modifier stake() {
         uint256 amount = 1e18;
         uint256 lockTime = 100;
-        uint8 percent = 10;
+        uint32 percent = 10 * 1e4;
 
-        uint256 preClaculatedReward = (amount * percent * 1e16 / 1e18) * lockTime / 365 days;
+        uint256 preClaculatedReward = (amount * percent / 1e6) * lockTime / 365 days;
 
         blp.mint(user, amount);
         blp.mint(address(stakingBLP), preClaculatedReward);
@@ -24,12 +24,12 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
         _;
     }
 
-    modifier stakeFuzz(uint256 amount, uint256 lockTime, uint8 percent) {
+    modifier stakeFuzz(uint256 amount, uint256 lockTime, uint32 percent) {
         amount = bound(amount, 1e5, 1e40);
-        percent = uint8(bound(percent, 1, 200));
+        percent = uint32(bound(percent, 10_000, 2_000_000));
         lockTime = bound(lockTime, 1e4, 1e15);
 
-        uint256 preClaculatedReward = (amount * percent * 1e16 / 1e18) * lockTime / 365 days;
+        uint256 preClaculatedReward = (amount * percent / 1e6) * lockTime / 365 days;
 
         blp.mint(user, amount);
         blp.mint(address(stakingBLP), preClaculatedReward);
@@ -45,7 +45,7 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
         _;
     }
 
-    function test_claimFuzz(uint256 amount, uint256 lockTime, uint8 percent)
+    function test_claimFuzz(uint256 amount, uint256 lockTime, uint32 percent)
         public
         stakeFuzz(amount, lockTime, percent)
     {
@@ -66,17 +66,19 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
         stakingBLP.withdraw();
     }
 
-    function test_withdrawFuzz(uint256 amount, uint256 lockTime, uint8 percent)
+    function test_withdrawFuzz(uint256 amount, uint256 lockTime, uint32 percent)
         public
         stakeFuzz(amount, lockTime, percent)
     {
         uint256 reward = stakingBLP.getRewardOf(user);
         vm.assume(reward > 0);
         (uint256 balance,,,) = stakingBLP.users(user);
+        uint256 lockedBefore = stakingBLP.totalLocked();
 
         vm.prank(user);
         stakingBLP.withdraw();
 
+        assertEq(lockedBefore - balance, stakingBLP.totalLocked());
         assertEq(blp.balanceOf(user), balance + reward);
     }
 }

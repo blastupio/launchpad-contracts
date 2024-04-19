@@ -14,14 +14,15 @@ contract BLPStaking is Ownable {
         uint256 balance;
         uint256 lastClaimTimestamp;
         uint256 unlockTimestamp;
-        uint256 slope;
+        uint256 yearlyReward;
     }
 
     mapping(address => UserState) public users;
-    mapping(uint256 => uint8) lockTimeToPercent;
+    mapping(uint256 => uint32) lockTimeToPercent;
 
     IERC20Metadata public stakeToken;
     uint256 public minBalance;
+    uint256 public totalLocked;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -34,9 +35,9 @@ contract BLPStaking is Ownable {
     function getRewardOf(address addr) public view returns (uint256) {
         UserState memory user = users[addr];
 
-        uint256 time =
+        uint256 elapsed =
             Math.min(block.timestamp - user.lastClaimTimestamp, user.unlockTimestamp - user.lastClaimTimestamp);
-        return user.slope * time / 365 days;
+        return user.yearlyReward * elapsed / 365 days;
     }
 
     /* ========== FUNCTIONS ========== */
@@ -45,7 +46,8 @@ contract BLPStaking is Ownable {
         minBalance = _minBalance;
     }
 
-    function setLockTimeToPercent(uint256 lockTime, uint8 percent) external onlyOwner {
+    // percent precision 1e4
+    function setLockTimeToPercent(uint256 lockTime, uint32 percent) external onlyOwner {
         lockTimeToPercent[lockTime] = percent;
     }
 
@@ -64,8 +66,9 @@ contract BLPStaking is Ownable {
 
         user.unlockTimestamp = block.timestamp + lockTime;
         user.balance += amount;
-        user.slope = user.balance * percent * 1e16 / 1e18;
-
+        user.yearlyReward = user.balance * percent / 1e6;
+        totalLocked += amount;
+        
         stakeToken.safeTransferFrom(msg.sender, address(this), amount);
 
         emit Staked(msg.sender, amount);
@@ -81,6 +84,7 @@ contract BLPStaking is Ownable {
         uint256 balance = user.balance;
         delete users[msg.sender];
 
+        totalLocked -= balance;
         stakeToken.safeTransfer(msg.sender, balance);
         emit Withdrawn(msg.sender, balance);
     }
@@ -93,6 +97,11 @@ contract BLPStaking is Ownable {
             stakeToken.safeTransfer(msg.sender, reward);
             emit Claimed(msg.sender, reward);
         }
+    }
+
+    function withdrawFunds(uint256 amount) external onlyOwner {
+        require(stakeToken.balanceOf(address(this)) >= totalLocked + amount, "BlastUP: amount gt allowed to be withdrawn");
+        stakeToken.safeTransfer(msg.sender, amount);
     }
 
     /* ========== EVENTS ========== */
