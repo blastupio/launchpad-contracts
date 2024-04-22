@@ -7,12 +7,12 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {ILaunchpad, LaunchpadDataTypes} from "./interfaces/ILaunchpad.sol";
+import {ILaunchpad, LaunchpadDataTypes as Types} from "./interfaces/ILaunchpad.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
-contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
+contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -34,10 +34,10 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
     address public signer;
     address public operator;
 
-    mapping(address => PlacedToken) public placedTokens;
-    mapping(UserTiers => uint256) public minAmountForTier;
-    mapping(UserTiers => uint256) public weightForTier;
-    mapping(address => mapping(address => User)) public users;
+    mapping(address => Types.PlacedToken) public placedTokens;
+    mapping(Types.UserTiers => uint256) public minAmountForTier;
+    mapping(Types.UserTiers => uint256) public weightForTier;
+    mapping(address => mapping(address => Types.User)) public users;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -57,57 +57,57 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
         operator = _operator;
         IBlastPoints(_points).configurePointsOperator(_owner);
 
-        minAmountForTier[UserTiers.BRONZE] = 2_000;
-        minAmountForTier[UserTiers.SILVER] = 5_000;
-        minAmountForTier[UserTiers.GOLD] = 10_000;
-        minAmountForTier[UserTiers.TITANIUM] = 20_000;
-        minAmountForTier[UserTiers.PLATINUM] = 50_000;
-        minAmountForTier[UserTiers.DIAMOND] = 150_000;
+        minAmountForTier[Types.UserTiers.BRONZE] = 2_000;
+        minAmountForTier[Types.UserTiers.SILVER] = 5_000;
+        minAmountForTier[Types.UserTiers.GOLD] = 10_000;
+        minAmountForTier[Types.UserTiers.TITANIUM] = 20_000;
+        minAmountForTier[Types.UserTiers.PLATINUM] = 50_000;
+        minAmountForTier[Types.UserTiers.DIAMOND] = 150_000;
 
-        weightForTier[UserTiers.BRONZE] = 20;
-        weightForTier[UserTiers.SILVER] = 30;
-        weightForTier[UserTiers.GOLD] = 50;
-        weightForTier[UserTiers.TITANIUM] = 10;
-        weightForTier[UserTiers.PLATINUM] = 30;
-        weightForTier[UserTiers.DIAMOND] = 60;
+        weightForTier[Types.UserTiers.BRONZE] = 20;
+        weightForTier[Types.UserTiers.SILVER] = 30;
+        weightForTier[Types.UserTiers.GOLD] = 50;
+        weightForTier[Types.UserTiers.TITANIUM] = 10;
+        weightForTier[Types.UserTiers.PLATINUM] = 30;
+        weightForTier[Types.UserTiers.DIAMOND] = 60;
 
         __Ownable_init(_owner);
     }
 
     /* ========== VIEWS ========== */
 
-    function userInfo(address token, address user) public view returns (User memory) {
+    function userInfo(address token, address user) public view returns (Types.User memory) {
         return users[token][user];
     }
 
-    function getPlacedToken(address token) external view returns (PlacedToken memory) {
+    function getPlacedToken(address token) external view returns (Types.PlacedToken memory) {
         return placedTokens[token];
     }
 
-    function getStatus(address token) public view returns (SaleStatus) {
-        if (!placedTokens[token].initialized) return SaleStatus.NOT_PLACED;
-        if (placedTokens[token].registrationStart > block.timestamp) return SaleStatus.BEFORE_REGISTARTION;
-        if (placedTokens[token].registrationEnd > block.timestamp) return SaleStatus.REGISTRATION;
-        if (placedTokens[token].publicSaleStart > block.timestamp) return SaleStatus.POST_REGISTRATION;
-        if (placedTokens[token].fcfsSaleStart > block.timestamp) return SaleStatus.PUBLIC_SALE;
-        if (placedTokens[token].saleEnd > block.timestamp) return SaleStatus.FCFS_SALE;
-        return SaleStatus.POST_SALE;
+    function getStatus(address token) public view returns (Types.SaleStatus) {
+        if (!placedTokens[token].initialized) return Types.SaleStatus.NOT_PLACED;
+        if (placedTokens[token].registrationStart > block.timestamp) return Types.SaleStatus.BEFORE_REGISTARTION;
+        if (placedTokens[token].registrationEnd > block.timestamp) return Types.SaleStatus.REGISTRATION;
+        if (placedTokens[token].publicSaleStart > block.timestamp) return Types.SaleStatus.POST_REGISTRATION;
+        if (placedTokens[token].fcfsSaleStart > block.timestamp) return Types.SaleStatus.PUBLIC_SALE;
+        if (placedTokens[token].saleEnd > block.timestamp) return Types.SaleStatus.FCFS_SALE;
+        return Types.SaleStatus.POST_SALE;
     }
 
     function userAllowedAllocation(address token, address user) public view returns (uint256) {
         if (!users[token][user].registered) return 0;
-        if (getStatus(token) == SaleStatus.PUBLIC_SALE) {
-            UserTiers tier = users[token][user].tier;
+        if (getStatus(token) == Types.SaleStatus.PUBLIC_SALE) {
+            Types.UserTiers tier = users[token][user].tier;
             uint256 weight = weightForTier[tier];
             uint256 boughtAmount = users[token][user].boughtAmount;
-            if (users[token][user].tier < UserTiers.TITANIUM) {
+            if (users[token][user].tier < Types.UserTiers.TITANIUM) {
                 return weight * placedTokens[token].initialVolumeForLowTiers / placedTokens[token].lowTiersWeightsSum
                     - boughtAmount;
             } else {
                 return weight * placedTokens[token].initialVolumeForHighTiers / placedTokens[token].highTiersWeightsSum
                     - boughtAmount;
             }
-        } else if (users[token][user].tier >= UserTiers.TITANIUM) {
+        } else if (users[token][user].tier >= Types.UserTiers.TITANIUM) {
             return placedTokens[token].volume;
         } else {
             return 0;
@@ -158,6 +158,26 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
         return tokensAmount;
     }
 
+    function _register(uint256 amountOfTokens, address token, Types.UserTiers tier) internal {
+        Types.PlacedToken storage placedToken = placedTokens[token];
+        Types.User storage user = users[token][msg.sender];
+
+        require(getStatus(token) == Types.SaleStatus.REGISTRATION, "BlastUP: invalid status");
+        require(!user.registered, "BlastUP: you are already registered");
+        require(minAmountForTier[tier] <= amountOfTokens, "BlastUP: you do not have enough BLP tokens for that tier");
+
+        if (tier < Types.UserTiers.TITANIUM) {
+            placedToken.lowTiersWeightsSum += weightForTier[tier];
+        } else {
+            placedToken.highTiersWeightsSum += weightForTier[tier];
+        }
+
+        user.tier = tier;
+        user.registered = true;
+
+        emit UserRegistered(msg.sender, token, tier);
+    }
+
     /* ========== FUNCTIONS ========== */
 
     function setSigner(address _signer) external onlyOwner {
@@ -169,21 +189,21 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
     }
 
     function setMinAmountsForTiers(uint256[6] memory amounts) external onlyOperatorOrOwner {
-        minAmountForTier[UserTiers.BRONZE] = amounts[0];
-        minAmountForTier[UserTiers.SILVER] = amounts[1];
-        minAmountForTier[UserTiers.GOLD] = amounts[2];
-        minAmountForTier[UserTiers.TITANIUM] = amounts[3];
-        minAmountForTier[UserTiers.PLATINUM] = amounts[4];
-        minAmountForTier[UserTiers.DIAMOND] = amounts[5];
+        minAmountForTier[Types.UserTiers.BRONZE] = amounts[0];
+        minAmountForTier[Types.UserTiers.SILVER] = amounts[1];
+        minAmountForTier[Types.UserTiers.GOLD] = amounts[2];
+        minAmountForTier[Types.UserTiers.TITANIUM] = amounts[3];
+        minAmountForTier[Types.UserTiers.PLATINUM] = amounts[4];
+        minAmountForTier[Types.UserTiers.DIAMOND] = amounts[5];
     }
 
     function setWeightsForTiers(uint256[6] memory weights) external onlyOperatorOrOwner {
-        weightForTier[UserTiers.BRONZE] = weights[0];
-        weightForTier[UserTiers.SILVER] = weights[1];
-        weightForTier[UserTiers.GOLD] = weights[2];
-        weightForTier[UserTiers.TITANIUM] = weights[3];
-        weightForTier[UserTiers.PLATINUM] = weights[4];
-        weightForTier[UserTiers.DIAMOND] = weights[5];
+        weightForTier[Types.UserTiers.BRONZE] = weights[0];
+        weightForTier[Types.UserTiers.SILVER] = weights[1];
+        weightForTier[Types.UserTiers.GOLD] = weights[2];
+        weightForTier[Types.UserTiers.TITANIUM] = weights[3];
+        weightForTier[Types.UserTiers.PLATINUM] = weights[4];
+        weightForTier[Types.UserTiers.DIAMOND] = weights[5];
     }
 
     function setRegistrationStart(address token, uint256 _registrationStart) external onlyOperatorOrOwner {
@@ -223,7 +243,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
         placedTokens[token].vestingStart = _vestingStart;
     }
 
-    function placeTokens(PlacedToken memory _placedToken, address token) external onlyOwner {
+    function placeTokens(Types.PlacedToken memory _placedToken, address token) external onlyOwner {
         require(!placedTokens[token].initialized, "BlastUP: This token was already placed");
 
         uint256 sumVolume = _placedToken.initialVolumeForHighTiers + _placedToken.initialVolumeForLowTiers
@@ -248,28 +268,13 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
         emit TokenPlaced(token);
     }
 
-    function register(address token, UserTiers tier, uint256 amountOfTokens, bytes memory signature) external virtual {
-        PlacedToken storage placedToken = placedTokens[token];
-        User storage user = users[token][msg.sender];
-
+    function register(address token, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature) external virtual {
         address signer_ = keccak256(abi.encodePacked(msg.sender, amountOfTokens, address(this), block.chainid))
             .toEthSignedMessageHash().recover(signature);
 
         require(signer_ == signer, "BlastUP: Invalid signature");
-        require(getStatus(token) == SaleStatus.REGISTRATION, "BlastUP: invalid status");
-        require(!user.registered, "BlastUP: you are already registered");
-        require(minAmountForTier[tier] <= amountOfTokens, "BlastUP: you do not have enough BLP tokens for that tier");
 
-        if (tier < UserTiers.TITANIUM) {
-            placedToken.lowTiersWeightsSum += weightForTier[tier];
-        } else {
-            placedToken.highTiersWeightsSum += weightForTier[tier];
-        }
-
-        user.tier = tier;
-        user.registered = true;
-
-        emit UserRegistered(msg.sender, token, tier);
+        _register(amountOfTokens, token, tier);
     }
 
     function buyTokens(address token, address paymentContract, uint256 volume, address receiver)
@@ -278,11 +283,11 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
         virtual
         returns (uint256)
     {
-        PlacedToken storage placedToken = placedTokens[token];
-        User storage user = users[token][receiver];
-        SaleStatus status = getStatus(token);
+        Types.PlacedToken storage placedToken = placedTokens[token];
+        Types.User storage user = users[token][receiver];
+        Types.SaleStatus status = getStatus(token);
 
-        require(status == SaleStatus.PUBLIC_SALE || status == SaleStatus.FCFS_SALE, "BlastUP: invalid status");
+        require(status == Types.SaleStatus.PUBLIC_SALE || status == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status");
 
         if (msg.value > 0) {
             paymentContract = address(WETH);
@@ -301,7 +306,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
         if (msg.sender != yieldStaking) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
             require(userAllowedAllocation(token, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
-        } else if (status == SaleStatus.PUBLIC_SALE) {
+        } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
 
             placedToken.volumeForYieldStakers -= tokensAmount;
@@ -325,9 +330,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
     }
 
     function claimRemainders(address token) external onlyOperatorOrOwner {
-        PlacedToken storage placedToken = placedTokens[token];
+        Types.PlacedToken storage placedToken = placedTokens[token];
 
-        require(getStatus(token) == SaleStatus.POST_SALE, "BlastUP: invalid status");
+        require(getStatus(token) == Types.SaleStatus.POST_SALE, "BlastUP: invalid status");
 
         uint256 volume = placedToken.volume;
 
@@ -338,7 +343,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
     }
 
     function claimTokens(address token) external {
-        User storage user = users[token][msg.sender];
+        Types.User storage user = users[token][msg.sender];
 
         uint256 claimableAmount = getClaimableAmount(token, msg.sender);
 
@@ -352,7 +357,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
 
     /* ========== EVENTS ========== */
     event TokenPlaced(address token);
-    event UserRegistered(address indexed user, address indexed token, UserTiers tier);
+    event UserRegistered(address indexed user, address indexed token, Types.UserTiers tier);
     event TokensBought(address indexed token, address indexed buyer, uint256 amount);
     event TokensClaimed(address token, address user);
 }

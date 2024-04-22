@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, LaunchpadDataTypes, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
+import {BaseLaunchpadTest, Launchpad, Types, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
 import {LaunchpadV2, ILaunchpadV2, BLPStaking} from "../../../../src/LaunchpadV2.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/console.sol";
@@ -33,7 +33,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
 
-        LaunchpadDataTypes.PlacedToken memory input = LaunchpadDataTypes.PlacedToken({
+        Types.PlacedToken memory input = Types.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -66,8 +66,8 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
     function test_registerV2() public placeTokens {
         uint256 amount = 10_000; // BLP
-        LaunchpadDataTypes.UserTiers tier = LaunchpadDataTypes.UserTiers.GOLD;
-        LaunchpadDataTypes.UserTiers tierDiamond = LaunchpadDataTypes.UserTiers.DIAMOND;
+        Types.UserTiers tier = Types.UserTiers.GOLD;
+        Types.UserTiers tierDiamond = Types.UserTiers.DIAMOND;
         uint256 lockTime = 100;
         uint32 percent = 10 * 1e2;
 
@@ -88,7 +88,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         vm.expectRevert("Not implemented");
         ILaunchpadV2(address(launchpad)).register(address(testToken), tier, amount, bytes(''));
         ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tier);
-        LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        Types.User memory userInfo = launchpad.userInfo(address(testToken), user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));
         assertEq(userInfo.registered, true);

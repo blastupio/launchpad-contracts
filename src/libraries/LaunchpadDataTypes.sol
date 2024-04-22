@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
-abstract contract LaunchpadDataTypes {
+library LaunchpadDataTypes {
     enum UserTiers {
         BRONZE,
         SILVER,
