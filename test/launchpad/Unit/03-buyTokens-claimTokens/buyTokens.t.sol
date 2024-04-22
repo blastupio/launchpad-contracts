@@ -8,7 +8,8 @@ import {
     MessageHashUtils,
     ECDSA,
     ERC20Mock,
-    ERC20RebasingMock
+    ERC20RebasingMock,
+    LaunchpadDataTypes
 } from "../../BaseLaunchpad.t.sol";
 import "forge-std/console.sol";
 
@@ -26,13 +27,13 @@ contract BuyTokensTest is BaseLaunchpadTest {
         return signature;
     }
 
-    function _getTierByAmount(uint256 _amount) internal view returns (ILaunchpad.UserTiers) {
-        if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.DIAMOND)) return ILaunchpad.UserTiers.DIAMOND;
-        if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.PLATINUM)) return ILaunchpad.UserTiers.PLATINUM;
-        if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.TITANIUM)) return ILaunchpad.UserTiers.TITANIUM;
-        if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.GOLD)) return ILaunchpad.UserTiers.GOLD;
-        if (_amount >= launchpad.minAmountForTier(ILaunchpad.UserTiers.SILVER)) return ILaunchpad.UserTiers.SILVER;
-        return ILaunchpad.UserTiers.BRONZE;
+    function _getTierByAmount(uint256 _amount) internal view returns (LaunchpadDataTypes.UserTiers) {
+        if (_amount >= launchpad.minAmountForTier(LaunchpadDataTypes.UserTiers.DIAMOND)) return LaunchpadDataTypes.UserTiers.DIAMOND;
+        if (_amount >= launchpad.minAmountForTier(LaunchpadDataTypes.UserTiers.PLATINUM)) return LaunchpadDataTypes.UserTiers.PLATINUM;
+        if (_amount >= launchpad.minAmountForTier(LaunchpadDataTypes.UserTiers.TITANIUM)) return LaunchpadDataTypes.UserTiers.TITANIUM;
+        if (_amount >= launchpad.minAmountForTier(LaunchpadDataTypes.UserTiers.GOLD)) return LaunchpadDataTypes.UserTiers.GOLD;
+        if (_amount >= launchpad.minAmountForTier(LaunchpadDataTypes.UserTiers.SILVER)) return LaunchpadDataTypes.UserTiers.SILVER;
+        return LaunchpadDataTypes.UserTiers.BRONZE;
     }
 
     function _usersClaimRewardsTge(address _user) internal {
@@ -43,7 +44,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
             emit Launchpad.TokensClaimed(address(testToken), _user);
             launchpad.claimTokens(address(testToken));
 
-            ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+            LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), _user);
             assertEq(launchpad.getClaimableAmount(address(testToken), _user), 0);
             assertEq(userInfo.claimedAmount, claimableAmount);
             assertEq(testToken.balanceOf(_user), claimableAmount);
@@ -55,7 +56,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         internal
         view
     {
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+        LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), _user);
         assertApproxEqAbs(
             launchpad.getClaimableAmount(address(testToken), _user) - user_claimableAmountBeforeVesting,
             (userInfo.boughtAmount - user_claimableAmountBeforeVesting) / 2,
@@ -65,14 +66,14 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
     function _checkClaimableAmountAfterTheVestingPeriod(address _user) internal {
         if (launchpad.getClaimableAmount(address(testToken), _user) > 0) {
-            ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+            LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), _user);
             vm.prank(_user);
             launchpad.claimTokens(address(testToken));
             assertEq(testToken.balanceOf(_user), userInfo.boughtAmount);
         }
     }
 
-    function _buyFromStaking(ILaunchpad.PlacedToken memory placedToken, address _user, address paymentContract)
+    function _buyFromStaking(LaunchpadDataTypes.PlacedToken memory placedToken, address _user, address paymentContract)
         internal
     {
         ERC20RebasingMock(paymentContract).addRewards(address(staking), 1e18);
@@ -83,13 +84,13 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.prank(_user);
         staking.claimReward{gas: 1e18}(paymentContract, address(testToken), rewardAmount, false);
 
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+        LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), _user);
         assertGt(userInfo.boughtAmount, 0);
     }
 
-    function _buyTokens(ILaunchpad.PlacedToken memory placedToken, address _user, address paymentContract) internal {
+    function _buyTokens(LaunchpadDataTypes.PlacedToken memory placedToken, address _user, address paymentContract) internal {
         vm.startPrank(_user);
-        ILaunchpad.User memory userInfoBefore = launchpad.userInfo(address(testToken), _user);
+        LaunchpadDataTypes.User memory userInfoBefore = launchpad.userInfo(address(testToken), _user);
 
         uint256 tokensAmount = launchpad.userAllowedAllocation(address(testToken), _user) / 2;
         uint256 volume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
@@ -99,7 +100,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         ERC20Mock(paymentContract).approve(address(launchpad), volume + 1);
         launchpad.buyTokens(address(testToken), paymentContract, volume, _user);
 
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+        LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), _user);
         assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
         vm.stopPrank();
     }
@@ -114,7 +115,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
 
-        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
+        LaunchpadDataTypes.PlacedToken memory input = LaunchpadDataTypes.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -166,7 +167,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         initialVolume *= 100;
 
-        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
+        LaunchpadDataTypes.PlacedToken memory input = LaunchpadDataTypes.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -199,13 +200,13 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
     modifier register() {
         uint256 amountOfTokens = 2000;
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+        LaunchpadDataTypes.UserTiers tier = LaunchpadDataTypes.UserTiers.BRONZE;
         bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.prank(user);
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.registrationEnd);
         _;
@@ -215,8 +216,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
         amountOfTokens = bound(amountOfTokens, 2000, 19999);
         amountOfTokens2 = bound(amountOfTokens2, 20000, 1e30);
 
-        ILaunchpad.UserTiers tier = _getTierByAmount(amountOfTokens);
-        ILaunchpad.UserTiers tier2 = _getTierByAmount(amountOfTokens2);
+        LaunchpadDataTypes.UserTiers tier = _getTierByAmount(amountOfTokens);
+        LaunchpadDataTypes.UserTiers tier2 = _getTierByAmount(amountOfTokens2);
 
         bytes memory signature = _getSignature(user, amountOfTokens);
         vm.prank(user);
@@ -230,7 +231,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.prank(user4);
         launchpad.register(address(testToken), tier2, amountOfTokens2, signature);
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.registrationEnd);
         _;
@@ -254,7 +255,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_InvalidStatus() public placeTokens register {
         uint256 volume = 1e18;
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.saleEnd);
 
@@ -267,7 +268,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_VolumeIsZero() public placeTokens register {
         uint256 volume = 0;
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.publicSaleStart);
 
@@ -282,7 +283,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_ReceiverMustBeTheSender() public placeTokens register {
         uint256 volume = 100e18;
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.publicSaleStart);
 
@@ -298,7 +299,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function test_RevertBuyTokens_NotEnoughAllocation() public placeTokens register {
         uint256 volume = 100e18;
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.publicSaleStart);
 
@@ -326,7 +327,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         registerFuzz(amountOfTokens, amountOfTokens2)
         stake
     {
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         vm.warp(placedToken.publicSaleStart);
 
@@ -376,7 +377,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.startPrank(user3);
-        ILaunchpad.User memory userInfoBefore = launchpad.userInfo(address(testToken), user3);
+        LaunchpadDataTypes.User memory userInfoBefore = launchpad.userInfo(address(testToken), user3);
         uint256 tokensAmount = launchpad.userAllowedAllocation(address(testToken), user3) / 2;
 
         volume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
@@ -385,7 +386,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         WETH.approve(address(launchpad), volume + 10);
         launchpad.buyTokens(address(testToken), address(WETH), volume, user3);
 
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user3);
+        LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), user3);
         assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
         vm.stopPrank();
 

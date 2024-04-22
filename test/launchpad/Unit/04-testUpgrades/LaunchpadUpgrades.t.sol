@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, ILaunchpad, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
+import {BaseLaunchpadTest, Launchpad, LaunchpadDataTypes, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
 import {LaunchpadV2, ILaunchpadV2, BLPStaking} from "../../../../src/LaunchpadV2.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/console.sol";
@@ -33,7 +33,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
 
-        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
+        LaunchpadDataTypes.PlacedToken memory input = LaunchpadDataTypes.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -66,8 +66,8 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
     function test_registerV2() public placeTokens {
         uint256 amount = 10_000; // BLP
-        ILaunchpadV2.UserTiers tier = ILaunchpadV2.UserTiers.GOLD;
-        ILaunchpadV2.UserTiers tierDiamond = ILaunchpadV2.UserTiers.DIAMOND;
+        LaunchpadDataTypes.UserTiers tier = LaunchpadDataTypes.UserTiers.GOLD;
+        LaunchpadDataTypes.UserTiers tierDiamond = LaunchpadDataTypes.UserTiers.DIAMOND;
         uint256 lockTime = 100;
         uint32 percent = 10 * 1e2;
 
@@ -85,8 +85,10 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.startPrank(user);
-        ILaunchpadV2(address(launchpad)).register(address(testToken), tier);
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        vm.expectRevert("Not implemented");
+        ILaunchpadV2(address(launchpad)).register(address(testToken), tier, amount, bytes(''));
+        ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tier);
+        LaunchpadDataTypes.User memory userInfo = launchpad.userInfo(address(testToken), user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));
         assertEq(userInfo.registered, true);
@@ -95,6 +97,6 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
         vm.prank(user2);
         vm.expectRevert("BlastUP: you do not have enough BLP tokens for that tier");
-        ILaunchpadV2(address(launchpad)).register(address(testToken), tierDiamond);
+        ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tierDiamond);
     }
 }

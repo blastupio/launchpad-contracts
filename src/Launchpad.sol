@@ -7,12 +7,12 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
+import {ILaunchpad, LaunchpadDataTypes} from "./interfaces/ILaunchpad.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
-contract Launchpad is OwnableUpgradeable, ILaunchpad {
+contract Launchpad is OwnableUpgradeable, ILaunchpad, LaunchpadDataTypes {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -248,7 +248,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit TokenPlaced(token);
     }
 
-    function register(address token, UserTiers tier, uint256 amountOfTokens, bytes memory signature) external {
+    function register(address token, UserTiers tier, uint256 amountOfTokens, bytes memory signature) external virtual {
         PlacedToken storage placedToken = placedTokens[token];
         User storage user = users[token][msg.sender];
 
@@ -275,6 +275,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     function buyTokens(address token, address paymentContract, uint256 volume, address receiver)
         external
         payable
+        virtual
         returns (uint256)
     {
         PlacedToken storage placedToken = placedTokens[token];

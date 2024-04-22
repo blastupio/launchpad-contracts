@@ -4,7 +4,7 @@ pragma solidity ^0.8.25;
 import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {YieldStaking} from "../../src/YieldStaking.sol";
-import {Launchpad, MessageHashUtils, ECDSA} from "../../src/Launchpad.sol";
+import {Launchpad, MessageHashUtils, ECDSA, LaunchpadDataTypes} from "../../src/Launchpad.sol";
 import {ILaunchpad} from "../../src/interfaces/ILaunchpad.sol";
 import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
 import {OracleMock} from "../../src/mocks/OracleMock.sol";

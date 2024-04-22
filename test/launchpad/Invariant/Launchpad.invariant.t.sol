@@ -1,7 +1,7 @@
 // // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, ILaunchpad} from "../BaseLaunchpad.t.sol";
+import {BaseLaunchpadTest, Launchpad, LaunchpadDataTypes} from "../BaseLaunchpad.t.sol";
 import {LaunchpadHandler} from "./Handlers/LaunchpadHandler.sol";
 
 contract LaunchpadInvariant is BaseLaunchpadTest {
@@ -55,7 +55,7 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
     // sumUsersAllowedAllocation calculated for the public sale round
     function assertSumUsersAllowedAllocationLeInitialVolume(address token) external view {
         LaunchpadHandler.PlacedTokenInvariants memory placedTokenInvariant = handler.getPlacedTokenInvariants(token);
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(token);
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(token);
 
         assertLe(
             placedTokenInvariant.sumUsersAllowedAllocation,

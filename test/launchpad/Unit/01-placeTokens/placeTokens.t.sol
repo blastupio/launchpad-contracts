@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, ILaunchpad} from "../../BaseLaunchpad.t.sol";
+import {BaseLaunchpadTest, Launchpad, LaunchpadDataTypes} from "../../BaseLaunchpad.t.sol";
 
 contract PlaceTokensTest is BaseLaunchpadTest {
     function test_placeTokens() public {
@@ -14,7 +14,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
 
-        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
+        LaunchpadDataTypes.PlacedToken memory input = LaunchpadDataTypes.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -41,7 +41,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
         testToken.approve(address(launchpad), type(uint256).max);
         launchpad.placeTokens(input, address(testToken));
 
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        LaunchpadDataTypes.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
 
         assertEq(testToken.balanceOf(address(launchpad)), initialVolume);
         assertEq(placedToken.price, price);
