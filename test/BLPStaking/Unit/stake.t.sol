@@ -62,7 +62,7 @@ contract BLPStakeTest is BaseBLPStaking {
     function test_stakeFuzz(uint256 amount, uint256 lockTime, uint32 percent) public {
         vm.warp(1001);
         amount = bound(amount, 1e6, 1e40);
-        percent = uint32(bound(percent, 10_000, 2_000_000));
+        percent = uint32(bound(percent, 100, 20_000));
         lockTime = bound(lockTime, 1e4, 1e15);
 
         blp.mint(user, amount);

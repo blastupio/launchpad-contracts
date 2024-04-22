@@ -46,14 +46,14 @@ contract BLPStaking is Ownable {
         minBalance = _minBalance;
     }
 
-    // percent precision 1e4
+    // percent precision 1e2
     function setLockTimeToPercent(uint256 lockTime, uint32 percent) external onlyOwner {
         lockTimeToPercent[lockTime] = percent;
     }
 
     function stake(uint256 amount, uint256 lockTime) external {
         UserState storage user = users[msg.sender];
-        uint256 percent = lockTimeToPercent[lockTime];
+        uint32 percent = lockTimeToPercent[lockTime];
 
         require(percent > 0, "BlastUP: invalid lockTime");
         require(user.balance + amount > minBalance, "BlastUP: you must send more to stake");
@@ -66,9 +66,9 @@ contract BLPStaking is Ownable {
 
         user.unlockTimestamp = block.timestamp + lockTime;
         user.balance += amount;
-        user.yearlyReward = user.balance * percent / 1e6;
+        user.yearlyReward = user.balance * percent / 1e4;
         totalLocked += amount;
-        
+
         stakeToken.safeTransferFrom(msg.sender, address(this), amount);
 
         emit Staked(msg.sender, amount);
@@ -100,7 +100,9 @@ contract BLPStaking is Ownable {
     }
 
     function withdrawFunds(uint256 amount) external onlyOwner {
-        require(stakeToken.balanceOf(address(this)) >= totalLocked + amount, "BlastUP: amount gt allowed to be withdrawn");
+        require(
+            stakeToken.balanceOf(address(this)) >= totalLocked + amount, "BlastUP: amount gt allowed to be withdrawn"
+        );
         stakeToken.safeTransfer(msg.sender, amount);
     }
 

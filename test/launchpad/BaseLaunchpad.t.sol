@@ -10,12 +10,16 @@ import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
 import {OracleMock} from "../../src/mocks/OracleMock.sol";
 import {WETHRebasingMock} from "../../src/mocks/WETHRebasingMock.sol";
 import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    TransparentUpgradeableProxy,
+    ProxyAdmin
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BlastPointsMock} from "../../src/mocks/BlastPointsMock.sol";
 
 contract BaseLaunchpadTest is Test {
     YieldStaking staking;
     Launchpad launchpad;
+    ProxyAdmin proxyAdmin;
 
     ERC20Mock blp;
     ERC20Mock testToken;
@@ -76,6 +80,7 @@ contract BaseLaunchpadTest is Test {
                 )
             )
         );
+        proxyAdmin = ProxyAdmin(vm.computeCreateAddress(address(launchpad), 1));
         staking = YieldStaking(
             payable(
                 address(

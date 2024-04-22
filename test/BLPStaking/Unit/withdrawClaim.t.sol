@@ -7,9 +7,9 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
     modifier stake() {
         uint256 amount = 1e18;
         uint256 lockTime = 100;
-        uint32 percent = 10 * 1e4;
+        uint32 percent = 10 * 1e2;
 
-        uint256 preClaculatedReward = (amount * percent / 1e6) * lockTime / 365 days;
+        uint256 preClaculatedReward = (amount * percent / 1e4) * lockTime / 365 days;
 
         blp.mint(user, amount);
         blp.mint(address(stakingBLP), preClaculatedReward);
@@ -26,10 +26,10 @@ contract BLPWithdrawClaimTest is BaseBLPStaking {
 
     modifier stakeFuzz(uint256 amount, uint256 lockTime, uint32 percent) {
         amount = bound(amount, 1e5, 1e40);
-        percent = uint32(bound(percent, 10_000, 2_000_000));
+        percent = uint32(bound(percent, 100, 20_000));
         lockTime = bound(lockTime, 1e4, 1e15);
 
-        uint256 preClaculatedReward = (amount * percent / 1e6) * lockTime / 365 days;
+        uint256 preClaculatedReward = (amount * percent / 1e4) * lockTime / 365 days;
 
         blp.mint(user, amount);
         blp.mint(address(stakingBLP), preClaculatedReward);
