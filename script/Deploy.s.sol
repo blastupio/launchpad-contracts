@@ -3,12 +3,13 @@
 pragma solidity ^0.8.1;
 
 import {Script, console} from "forge-std/Script.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TransparentUpgradeableProxy, ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {YieldStaking} from "../src/YieldStaking.sol";
 import {Launchpad, MessageHashUtils, ECDSA} from "../src/Launchpad.sol";
 import {ILaunchpad} from "../src/interfaces/ILaunchpad.sol";
+import {LaunchpadV2} from "../src/LaunchpadV2.sol";
+import {BLPStaking} from "../src/BLPStaking.sol";
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {OracleMock} from "../src/mocks/OracleMock.sol";
 
@@ -24,12 +25,12 @@ import {WETHRebasingTestnetMock} from "../src/mocks/WETHRebasingTestnetMock.sol"
 contract DeployScript is Script {
     using SafeERC20 for IERC20;
 
-    function _deploy(address WETH, address USDB, address oracle, address points) public {
+    function _deploy(address WETH, address USDB, address oracle, address points) public returns(Launchpad launchpad, YieldStaking staking, address proxyAdmin) {
         (, address deployer,) = vm.readCallers();
 
         uint256 nonce = vm.getNonce(deployer);
         address stakingAddress = vm.computeCreateAddress(deployer, nonce + 3);
-        Launchpad launchpad = Launchpad(
+        launchpad = Launchpad(
             address(
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
@@ -38,7 +39,8 @@ contract DeployScript is Script {
                 )
             )
         );
-        YieldStaking staking = YieldStaking(
+        proxyAdmin = vm.computeCreateAddress(address(launchpad), 1);
+        staking = YieldStaking(
             payable(
                 address(
                     new TransparentUpgradeableProxy(
@@ -52,6 +54,7 @@ contract DeployScript is Script {
 
         console.log("launchpad ", address(launchpad));
         console.log("staking: ", address(staking));
+        console.log("proxy admin: ", proxyAdmin);
     }
 
     function deploySepolia() public {
@@ -66,6 +69,34 @@ contract DeployScript is Script {
         console.log("weth: ", address(WETH));
 
         _deploy(address(WETH), address(USDB), oracle, points);
+
+        vm.stopBroadcast();
+    }
+
+    function deploySepoliaV2() public {
+        vm.startBroadcast();
+
+        address USDB = 0x4200000000000000000000000000000000000022;
+        address WETH = 0x4200000000000000000000000000000000000023;
+        address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
+        address points = 0x2fc95838c71e76ec69ff817983BFf17c710F34E0;
+
+        (Launchpad launchpad, YieldStaking yieldStaking, address proxyAdmin) = _deploy(WETH, USDB, oracle, points);
+
+        (, address deployer,) = vm.readCallers();
+
+        ERC20Mock blp = new ERC20Mock("BLP", "BlastUP", 18); 
+
+        BLPStaking blpStaking = new BLPStaking(address(blp), deployer);
+        blpStaking = new BLPStaking(address(blp), deployer);
+        ProxyAdmin(proxyAdmin).upgradeAndCall(
+            ITransparentUpgradeableProxy(address(launchpad)),
+            address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(yieldStaking))),
+            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking)))
+        );
+
+        console.log("BLP: ", address(blp));
+        console.log("BLPStaking: ", address(blpStaking));
 
         vm.stopBroadcast();
     }
