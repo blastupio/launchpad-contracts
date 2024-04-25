@@ -263,7 +263,6 @@ contract YieldStaking is OwnableUpgradeable {
 
     /* ========== EVENTS ========== */
 
-    event StakingCreated(address stakingToken);
     event Staked(address stakingToken, address indexed user, uint256 amount);
     event Withdrawn(address stakingToken, address indexed user, uint256 amount);
     event RewardClaimed(address stakingToken, address indexed user, address rewardToken, uint256 amountInStakingToken);

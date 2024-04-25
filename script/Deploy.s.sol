@@ -85,7 +85,7 @@ contract DeployScript is Script {
 
         (, address deployer,) = vm.readCallers();
 
-        ERC20Mock blp = new ERC20Mock("BLP", "BlastUP", 18); 
+        ERC20Mock blp = new ERC20Mock("BlastUP", "BLP", 18); 
 
         BLPStaking blpStaking = new BLPStaking(address(blp), deployer);
         blpStaking = new BLPStaking(address(blp), deployer);
