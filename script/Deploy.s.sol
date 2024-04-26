@@ -18,6 +18,8 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 import {WETHRebasingMock} from "../src/mocks/WETHRebasingMock.sol";
 import {ERC20RebasingMock} from "../src/mocks/ERC20RebasingMock.sol";
+import {ERC20RebasingTestnetMock} from "../src/mocks/ERC20RebasingTestnetMock.sol";
+import {WETHRebasingTestnetMock} from "../src/mocks/WETHRebasingTestnetMock.sol";
 
 contract DeployScript is Script {
     using SafeERC20 for IERC20;
@@ -55,11 +57,14 @@ contract DeployScript is Script {
     function deploySepolia() public {
         vm.startBroadcast();
 
-        address USDB = 0x4200000000000000000000000000000000000022;
-        address WETH = 0x4200000000000000000000000000000000000023;
+        ERC20RebasingMock USDB = new ERC20RebasingTestnetMock("USDB", "USDB", 18);
+        ERC20RebasingMock WETH = new WETHRebasingTestnetMock("WETH", "WETH", 18);
         address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
 
-        _deploy(WETH, USDB, oracle);
+        console.log("usdb: ", address(USDB));
+        console.log("weth: ", address(WETH));
+
+        _deploy(address(WETH), address(USDB), oracle);
 
         vm.stopBroadcast();
     }

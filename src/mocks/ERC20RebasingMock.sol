@@ -13,13 +13,13 @@ contract ERC20RebasingMock is ERC20Mock {
         return 0;
     }
 
-    function claim(address recipient, uint256 amount) external returns (uint256) {
+    function claim(address recipient, uint256 amount) external virtual returns (uint256) {
         _mint(recipient, amount);
         rewards[msg.sender] -= amount;
         return amount;
     }
 
-    function getClaimableAmount(address account) public view returns (uint256) {
+    function getClaimableAmount(address account) public view virtual returns (uint256) {
         return rewards[account];
     }
 
