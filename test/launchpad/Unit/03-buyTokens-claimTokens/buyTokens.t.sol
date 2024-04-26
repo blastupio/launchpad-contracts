@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, ILaunchpad, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
+import {
+    BaseLaunchpadTest,
+    Launchpad,
+    ILaunchpad,
+    MessageHashUtils,
+    ECDSA,
+    ERC20Mock,
+    ERC20RebasingMock
+} from "../../BaseLaunchpad.t.sol";
 import "forge-std/console.sol";
 
 contract BuyTokensTest is BaseLaunchpadTest {
@@ -67,6 +75,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     function _buyFromStaking(ILaunchpad.PlacedToken memory placedToken, address _user, address paymentContract)
         internal
     {
+        ERC20RebasingMock(paymentContract).addRewards(address(staking), 1e18);
         uint256 rewardAmount;
         (, uint256 reward) = staking.balanceAndRewards(paymentContract, _user);
         uint256 _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;

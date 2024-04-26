@@ -16,12 +16,15 @@ contract StakingInvariant is BaseStakingTest {
         excludeSender(stakingProxyAdmin);
     }
 
-    function invariant_balanceEqStakedPlusClaimed() public view {
-        assertGe(USDB.balanceOf(address(staking)), handler.ghost_stakedSums(address(USDB)));
-        assertGe(WETH.balanceOf(address(staking)), handler.ghost_stakedSums(address(WETH)));
+    function invariant_sumBalances() public view {
+        address[] memory actors = handler.getActors();
+        uint256 sumUSDB;
+        uint256 sumWETH;
+        for (uint256 i = 0; i < actors.length; i++) {
+            sumWETH += handler.getUserBalance(address(WETH), actors[i]);
+            sumUSDB += handler.getUserBalance(address(USDB), actors[i]);
+        }
+        assertGe(USDB.balanceOf(address(staking)) + USDB.getClaimableAmount(address(staking)), sumUSDB);
+        assertGe(WETH.balanceOf(address(staking)) + WETH.getClaimableAmount(address(staking)), sumWETH);
     }
-
-    // function invariant_callSummary() public view {
-    //     handler.callSummary();
-    // }
 }

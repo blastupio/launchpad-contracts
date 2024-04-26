@@ -46,13 +46,17 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         _;
     }
 
+    function getActors() public view returns (address[] memory) {
+        return _actors.addrs;
+    }
+
     constructor(YieldStaking _staking, address _usdb, address _weth) {
         staking = _staking;
         usdb = _usdb;
         weth = _weth;
     }
 
-    function _getUserBalance(address token, address user) internal view returns (uint256) {
+    function getUserBalance(address token, address user) public view returns (uint256) {
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(token, user);
 
         return balance + rewards;
@@ -84,19 +88,22 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         ERC20Mock(depositToken).mint(currentActor, amount);
         IERC20(depositToken).approve(address(staking), amount);
 
+        _increaseGhostWithRewards(depositToken);
         if (usdbValue < minAmountToStake) {
             vm.expectRevert();
             staking.stake(depositToken, amount);
             return;
         }
 
-        _increaseGhostWithRewards(depositToken);
         ghost_stakedSums[depositToken] += amount;
         deposited[depositToken][currentActor] += amount;
 
-        uint256 balanceBefore = _getUserBalance(depositToken, currentActor);
+        (uint256 balanceBefore, uint256 rewardsBefore) = staking.balanceAndRewards(depositToken, currentActor);
         staking.stake(depositToken, amount);
-        assertGe(_getUserBalance(depositToken, currentActor), balanceBefore + amount);
+        uint256 rewardsAfter;
+        (balanceAfter, rewardsAfter) = staking.balanceAndRewards(depositToken, currentActor);
+        assertEq(balanceAfter, balanceBefore + amount);
+        assertEq(rewardsAfter, rewardsBefore);
     }
 
     function withdraw(uint256 actorSeed, uint256 amount, bool WETHOrUSDB)
@@ -115,14 +122,14 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
         _increaseGhostWithRewards(targetToken);
         ghost_stakedSums[targetToken] -= amount;
-        if (amount > deposited[targetToken][currentActor]) {
-            deposited[targetToken][currentActor] = 0;
-        } else {
-            deposited[targetToken][currentActor] -= amount;
-        }
+        deposited[targetToken][currentActor] -= amount;
 
+        (uint256 balanceBefore, uint256 rewardsBefore) = staking.balanceAndRewards(targetToken, currentActor);
         vm.startPrank(currentActor);
         staking.withdraw(targetToken, amount, false);
+        (uint256 balanceAfter, uint256 rewardsAfter) = staking.balanceAndRewards(targetToken, currentActor);
+        assertEq(balanceAfter, balanceBefore - amount);
+        assertEq(rewardsAfter, rewardsBefore);
     }
 
     function claimReward(uint256 actorSeed, uint256 rewardAmount, bool WETHOrUSDB)
@@ -141,8 +148,10 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         _increaseGhostWithRewards(targetToken);
         ghost_stakedSums[targetToken] -= rewardAmount;
 
+        uint256 balanceBefore = getUserBalance(rewardToken, currentActor);
         vm.startPrank(currentActor);
         staking.claimReward(targetToken, rewardToken, rewardAmount, false);
+        assertEq(getUserBalance(rewardToken, currentActor), balanceBefore - rewardAmount);
     }
 
     // Ensure that user can always withdraw his funds in full.
@@ -162,8 +171,10 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         ghost_stakedSums[token] -= amount;
         deposited[token][currentActor] = 0;
 
+        uint256 balanceBefore = getUserBalance(token, currentActor);
         vm.startPrank(currentActor);
         staking.withdraw(token, amount, false);
+        assertEq(getUserBalance(token, currentActor), balanceBefore - amount);
     }
 
     function setMinTimeToWithdraw(uint256 amount) public countCall("setMinTimeToWithdraw") {
@@ -183,5 +194,14 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
     function warp(uint256 secs) public {
         secs = _bound(secs, 0, 30 days);
         vm.warp(block.timestamp + secs);
+    }
+
+    function addRewards(bool isWeth, uint256 amount) public {
+        address token = isWeth ? weth : usdb;
+        uint256 index = staking.lastIndex(token);
+
+        vm.assume(index < 1e23);
+        amount = _bound(amount, 0, 1_000 * (10 ** IERC20Metadata(token).decimals()));
+        ERC20RebasingMock(token).addRewards(address(staking), amount);
     }
 }
