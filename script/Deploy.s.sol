@@ -91,7 +91,7 @@ contract DeployScript is Script {
         ProxyAdmin(proxyAdmin).upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(yieldStaking))),
-            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking)))
+            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking), points, deployer))
         );
 
         console.log("BLP: ", address(blp));

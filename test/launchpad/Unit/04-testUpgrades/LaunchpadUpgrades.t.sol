@@ -16,7 +16,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(staking))),
-            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking)))
+            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking), address(points), admin))
         );
 
         vm.stopPrank();

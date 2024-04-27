@@ -12,6 +12,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {BLPStaking} from "./BLPStaking.sol";
 import {Launchpad} from "./Launchpad.sol";
+import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
 contract LaunchpadV2 is Launchpad {
     address public blpStaking;
@@ -22,8 +23,9 @@ contract LaunchpadV2 is Launchpad {
         Launchpad(_weth, _usdb, _oracle, _yieldStaking)
     {}
 
-    function initializeV2(address _blpStaking) public reinitializer(2) {
+    function initializeV2(address _blpStaking, address _points, address _operator) public reinitializer(2) {
         blpStaking = _blpStaking;
+        IBlastPoints(_points).configurePointsOperator(_operator);
     }
 
     /* ========== FUNCTIONS ========== */
