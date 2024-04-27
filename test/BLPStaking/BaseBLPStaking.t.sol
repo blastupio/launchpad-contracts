@@ -6,6 +6,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
 import {BLPStaking} from "../../src/BLPStaking.sol";
+import {BlastPointsMock} from "../../src/mocks/BlastPointsMock.sol";
 
 contract BaseBLPStaking is Test {
     ERC20Mock blp;
@@ -14,6 +15,7 @@ contract BaseBLPStaking is Test {
     uint256 internal adminPrivateKey;
 
     BLPStaking stakingBLP;
+    BlastPointsMock points;
 
     address user;
     address user2;
@@ -28,7 +30,8 @@ contract BaseBLPStaking is Test {
 
         vm.startPrank(admin);
         blp = new ERC20Mock("BlastUp", "BLP", 18);
-        stakingBLP = new BLPStaking(address(blp), admin);
+        points = new BlastPointsMock();
+        stakingBLP = new BLPStaking(address(blp), admin, address(points));
         vm.stopPrank();
     }
 }

@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
 contract BLPStaking is Ownable {
     using SafeERC20 for IERC20Metadata;
@@ -26,8 +27,9 @@ contract BLPStaking is Ownable {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _stakeToken, address admin) Ownable(admin) {
+    constructor(address _stakeToken, address _owner, address _points) Ownable(_owner) {
         stakeToken = IERC20Metadata(_stakeToken);
+        IBlastPoints(_points).configurePointsOperator(_owner);
     }
 
     /* ========== VIEWS ========== */

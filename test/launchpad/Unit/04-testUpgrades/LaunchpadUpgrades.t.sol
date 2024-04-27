@@ -12,7 +12,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
     function setUp() public override {
         super.setUp();
         vm.startPrank(admin);
-        blpStaking = new BLPStaking(address(blp), admin);
+        blpStaking = new BLPStaking(address(blp), admin, address(points));
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(staking))),

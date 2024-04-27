@@ -87,8 +87,7 @@ contract DeployScript is Script {
 
         ERC20Mock blp = new ERC20Mock("BlastUP", "BLP", 18); 
 
-        BLPStaking blpStaking = new BLPStaking(address(blp), deployer);
-        blpStaking = new BLPStaking(address(blp), deployer);
+        BLPStaking blpStaking = new BLPStaking(address(blp), deployer, points);
         ProxyAdmin(proxyAdmin).upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(yieldStaking))),
