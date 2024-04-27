@@ -17,6 +17,7 @@ import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
 
 import {WadMath} from "../../src/libraries/WadMath.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {BlastPointsMock} from "../../src/mocks/BlastPointsMock.sol";
 
 contract BaseStakingTest is Test {
     YieldStaking staking;
@@ -26,6 +27,7 @@ contract BaseStakingTest is Test {
     ERC20Mock testToken;
 
     OracleMock oracle;
+    BlastPointsMock points;
 
     address internal admin;
     uint256 internal adminPrivateKey;
@@ -56,6 +58,7 @@ contract BaseStakingTest is Test {
         blp = new ERC20Mock("BlastUp", "BLP", 18);
         testToken = new ERC20Mock("Token", "TKN", 18);
         oracle = new OracleMock();
+        points = new BlastPointsMock();
 
         uint256 nonce = vm.getNonce(admin);
         address stakingAddress = vm.computeCreateAddress(admin, nonce + 3);
@@ -65,7 +68,7 @@ contract BaseStakingTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
                     admin,
-                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin))
+                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin, address(points)))
                 )
             )
         );
@@ -75,7 +78,7 @@ contract BaseStakingTest is Test {
                     new TransparentUpgradeableProxy(
                         address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
                         admin,
-                        abi.encodeCall(YieldStaking.initialize, (admin))
+                        abi.encodeCall(YieldStaking.initialize, (admin, address(points)))
                     )
                 )
             )

@@ -12,6 +12,7 @@ import {IBlast} from "./interfaces/IBlast.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {WadMath} from "./libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
 contract YieldStaking is OwnableUpgradeable {
     using WadMath for uint256;
@@ -62,12 +63,13 @@ contract YieldStaking is OwnableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address _owner) public initializer {
+    function initialize(address _owner, address _points) public initializer {
         USDB.configure(YieldMode.CLAIMABLE);
         WETH.configure(YieldMode.CLAIMABLE);
         // initialize pools
         stakingInfos[address(USDB)].lastIndex = WadMath.WAD;
         stakingInfos[address(WETH)].lastIndex = WadMath.WAD;
+        IBlastPoints(_points).configurePointsOperator(_owner);
 
         __Ownable_init(_owner);
     }

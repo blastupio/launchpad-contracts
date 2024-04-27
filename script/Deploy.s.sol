@@ -24,7 +24,7 @@ import {WETHRebasingTestnetMock} from "../src/mocks/WETHRebasingTestnetMock.sol"
 contract DeployScript is Script {
     using SafeERC20 for IERC20;
 
-    function _deploy(address WETH, address USDB, address oracle) public {
+    function _deploy(address WETH, address USDB, address oracle, address points) public {
         (, address deployer,) = vm.readCallers();
 
         uint256 nonce = vm.getNonce(deployer);
@@ -34,7 +34,7 @@ contract DeployScript is Script {
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
                     deployer,
-                    abi.encodeCall(Launchpad.initialize, (deployer, deployer, deployer))
+                    abi.encodeCall(Launchpad.initialize, (deployer, deployer, deployer, points))
                 )
             )
         );
@@ -44,7 +44,7 @@ contract DeployScript is Script {
                     new TransparentUpgradeableProxy(
                         address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
                         deployer,
-                        abi.encodeCall(YieldStaking.initialize, (deployer))
+                        abi.encodeCall(YieldStaking.initialize, (deployer, points))
                     )
                 )
             )
@@ -60,11 +60,12 @@ contract DeployScript is Script {
         ERC20RebasingMock USDB = new ERC20RebasingTestnetMock("USDB", "USDB", 18);
         ERC20RebasingMock WETH = new WETHRebasingTestnetMock("WETH", "WETH", 18);
         address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
+        address points = 0x2fc95838c71e76ec69ff817983BFf17c710F34E0;
 
         console.log("usdb: ", address(USDB));
         console.log("weth: ", address(WETH));
 
-        _deploy(address(WETH), address(USDB), oracle);
+        _deploy(address(WETH), address(USDB), oracle, points);
 
         vm.stopBroadcast();
     }

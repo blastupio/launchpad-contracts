@@ -10,6 +10,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {ILaunchpad} from "./interfaces/ILaunchpad.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
 contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using SafeERC20 for IERC20;
@@ -51,9 +52,10 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         _disableInitializers();
     }
 
-    function initialize(address _owner, address _signer, address _operator) public initializer {
+    function initialize(address _owner, address _signer, address _operator, address _points) public initializer {
         signer = _signer;
         operator = _operator;
+        IBlastPoints(_points).configurePointsOperator(_owner);
 
         minAmountForTier[UserTiers.BRONZE] = 2_000;
         minAmountForTier[UserTiers.SILVER] = 5_000;
