@@ -215,7 +215,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         vm.startPrank(currentActor);
         ERC20Mock(paymentContract).mint(currentActor, volume);
         ERC20Mock(paymentContract).approve(address(launchpad), volume);
-        launchpad.buyTokens(currentToken, paymentContract, volume, currentActor);
+        launchpad.buyTokens(currentToken, paymentContract, volume, currentActor, bytes(""));
 
         Types.User memory userInfoAfter = launchpad.userInfo(currentToken, currentActor);
         vm.stopPrank();

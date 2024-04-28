@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.25;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LaunchpadDataTypes} from "../libraries/LaunchpadDataTypes.sol";
 
 interface ILaunchpad {
@@ -16,7 +15,15 @@ interface ILaunchpad {
     function register(address token, LaunchpadDataTypes.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
         external;
 
-    function buyTokens(address token, address paymentContract, uint256 volume, address receiver)
+    function registerWithApprove(
+        address token,
+        LaunchpadDataTypes.UserTiers tier,
+        uint256 amountOfTokens,
+        bytes memory signature,
+        bytes memory approveSignature
+    ) external;
+
+    function buyTokens(address token, address paymentContract, uint256 volume, address receiver, bytes memory signature)
         external
         payable
         returns (uint256);

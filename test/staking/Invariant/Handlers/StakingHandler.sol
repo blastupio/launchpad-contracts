@@ -6,7 +6,15 @@ import {StdAssertions} from "forge-std/StdAssertions.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
-import {BaseStakingTest, YieldStaking, WadMath, ERC20Mock, ERC20RebasingMock} from "../../BaseStaking.t.sol";
+import {
+    BaseStakingTest,
+    YieldStaking,
+    WadMath,
+    ERC20Mock,
+    ERC20RebasingMock,
+    Launchpad,
+    MessageHashUtils
+} from "../../BaseStaking.t.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {WadMath} from "../../../../src/libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -16,10 +24,13 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
     using LibAddressSet for AddressSet;
     using WadMath for uint256;
     using Math for uint256;
+    using MessageHashUtils for bytes32;
 
     YieldStaking public staking;
     address internal immutable usdb;
     address internal immutable weth;
+    Launchpad internal launchpad;
+    uint256 internal immutable adminPrivateKey;
 
     mapping(address => uint256) public ghost_stakedSums;
     mapping(address token => mapping(address user => uint256 amount)) deposited;
@@ -49,10 +60,12 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         return _actors.addrs;
     }
 
-    constructor(YieldStaking _staking, address _usdb, address _weth) {
+    constructor(YieldStaking _staking, address _usdb, address _weth, Launchpad _launchpad, uint256 _adminPrivateKey) {
         staking = _staking;
         usdb = _usdb;
         weth = _weth;
+        launchpad = _launchpad;
+        adminPrivateKey = _adminPrivateKey;
     }
 
     function getUserBalance(address token, address user) public view returns (uint256) {
@@ -63,6 +76,15 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
 
     function _increaseGhostWithRewards(address token) internal {
         ghost_stakedSums[token] += ERC20RebasingMock(token).getClaimableAmount(address(staking));
+    }
+
+    function _getApproveSignature(address _user, address _token) internal returns (bytes memory signature) {
+        vm.startPrank(launchpad.owner());
+        bytes32 digest =
+            keccak256(abi.encodePacked(_user, _token, address(launchpad), block.chainid)).toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
     }
 
     function stake(uint256 amount, bool WETHOrUSDB) public createActor countCall("stake") {
@@ -148,8 +170,9 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         ghost_stakedSums[targetToken] -= rewardAmount;
 
         uint256 balanceBefore = getUserBalance(rewardToken, currentActor);
+        bytes memory approveSignature = _getApproveSignature(currentActor, rewardToken);
         vm.startPrank(currentActor);
-        staking.claimReward(targetToken, rewardToken, rewardAmount, false);
+        staking.claimReward(targetToken, rewardToken, rewardAmount, false, approveSignature);
         assertEq(getUserBalance(rewardToken, currentActor), balanceBefore - rewardAmount);
     }
 

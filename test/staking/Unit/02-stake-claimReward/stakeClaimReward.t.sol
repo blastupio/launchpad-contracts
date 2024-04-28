@@ -44,7 +44,7 @@ contract StakeClaimRewardTest is BaseStakingTest {
         vm.expectEmit(true, true, true, true, address(staking));
         emit YieldStaking.RewardClaimed(targetToken, user, targetToken, claimableAmount);
 
-        staking.claimReward(targetToken, targetToken, claimableAmount, false);
+        staking.claimReward(targetToken, targetToken, claimableAmount, false, bytes(""));
         vm.stopPrank();
 
         vm.startPrank(user2);
@@ -53,7 +53,7 @@ contract StakeClaimRewardTest is BaseStakingTest {
         vm.expectEmit(true, true, true, true, address(staking));
         emit YieldStaking.RewardClaimed(targetToken, user2, targetToken, claimableAmount);
 
-        staking.claimReward(targetToken, targetToken, claimableAmount, false);
+        staking.claimReward(targetToken, targetToken, claimableAmount, false, bytes(""));
         vm.stopPrank();
     }
 }

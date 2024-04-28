@@ -88,6 +88,8 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         vm.startPrank(user);
         vm.expectRevert("Not implemented");
         ILaunchpadV2(address(launchpad)).register(address(testToken), tier, amount, bytes(""));
+        vm.expectRevert("Not implemented");
+        ILaunchpadV2(address(launchpad)).registerWithApprove(address(testToken), tier, amount, bytes(""), bytes(""));
         ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tier);
         Types.User memory userInfo = launchpad.userInfo(address(testToken), user);
 

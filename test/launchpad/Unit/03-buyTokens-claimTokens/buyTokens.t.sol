@@ -17,14 +17,22 @@ contract BuyTokensTest is BaseLaunchpadTest {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
-    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
+    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory signature) {
         vm.startPrank(admin);
         bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        signature = abi.encodePacked(r, s, v);
         vm.stopPrank();
-        return signature;
+    }
+
+    function _getApproveSignature(address _user, address _token) internal returns (bytes memory signature) {
+        vm.startPrank(admin);
+        bytes32 digest =
+            keccak256(abi.encodePacked(_user, _token, address(launchpad), block.chainid)).toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
     }
 
     function _getTierByAmount(uint256 _amount) internal view returns (Types.UserTiers) {
@@ -79,8 +87,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
         (, uint256 reward) = staking.balanceAndRewards(paymentContract, _user);
         uint256 _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
         rewardAmount = bound(rewardAmount, placedToken.price / (10 ** placedToken.tokenDecimals) + 1, _max);
+        bytes memory _approveSignaure = _getApproveSignature(_user, address(testToken));
         vm.prank(_user);
-        staking.claimReward{gas: 1e18}(paymentContract, address(testToken), rewardAmount, false);
+        staking.claimReward(paymentContract, address(testToken), rewardAmount, false, _approveSignaure);
 
         Types.User memory userInfo = launchpad.userInfo(address(testToken), _user);
         assertGt(userInfo.boughtAmount, 0);
@@ -96,7 +105,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
         ERC20Mock(paymentContract).mint(_user, volume + 1e18);
         ERC20Mock(paymentContract).approve(address(launchpad), volume + 1);
-        launchpad.buyTokens(address(testToken), paymentContract, volume, _user);
+        launchpad.buyTokens(address(testToken), paymentContract, volume, _user, bytes(""));
 
         Types.User memory userInfo = launchpad.userInfo(address(testToken), _user);
         assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
@@ -261,7 +270,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
         vm.startPrank(user);
         vm.expectRevert("BlastUP: invalid status");
-        launchpad.buyTokens(address(testToken), address(USDB), volume, user);
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user, bytes(""));
         vm.stopPrank();
     }
 
@@ -275,7 +284,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.startPrank(user);
 
         vm.expectRevert("BlastUP: volume must be greater than 0");
-        launchpad.buyTokens(address(testToken), address(USDB), volume, user);
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user, bytes(""));
 
         vm.stopPrank();
     }
@@ -291,7 +300,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         USDB.mint(user, volume + 1);
         USDB.approve(address(launchpad), volume + 1);
         vm.expectRevert("BlastUP: the receiver must be the sender");
-        launchpad.buyTokens(address(testToken), address(USDB), volume, user2);
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user2, bytes(""));
 
         vm.stopPrank();
     }
@@ -307,7 +316,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         USDB.mint(user2, volume + 1);
         USDB.approve(address(launchpad), volume + 1);
         vm.expectRevert("BlastUP: You have not enough allocation");
-        launchpad.buyTokens(address(testToken), address(USDB), volume, user2);
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user2, bytes(""));
 
         vm.stopPrank();
     }
@@ -355,7 +364,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         uint256 volume = 100;
         USDB.approve(address(launchpad), volume + 1);
         vm.expectRevert();
-        launchpad.buyTokens(address(testToken), address(USDB), volume, user);
+        launchpad.buyTokens(address(testToken), address(USDB), volume, user, bytes(""));
         vm.stopPrank();
 
         // expect revert buying by staking yield
@@ -364,16 +373,18 @@ contract BuyTokensTest is BaseLaunchpadTest {
         (, uint256 reward) = staking.balanceAndRewards(address(USDB), user5);
         uint256 _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
         rewardAmount = bound(rewardAmount, placedToken.price / (10 ** placedToken.tokenDecimals) + 1, _max);
+        bytes memory approveSignature = _getApproveSignature(user5, address(testToken));
         vm.expectRevert();
-        staking.claimReward(address(USDB), address(testToken), rewardAmount, false);
+        staking.claimReward(address(USDB), address(testToken), rewardAmount, false, approveSignature);
         vm.stopPrank();
 
         vm.startPrank(user6);
         (, reward) = staking.balanceAndRewards(address(WETH), user6);
         _max = reward > placedToken.volumeForYieldStakers ? placedToken.volumeForYieldStakers : reward;
         rewardAmount = bound(rewardAmount, placedToken.price / (10 ** placedToken.tokenDecimals) + 1, _max);
+        approveSignature = _getApproveSignature(user5, address(testToken));
         vm.expectRevert();
-        staking.claimReward(address(WETH), address(testToken), rewardAmount, false);
+        staking.claimReward(address(WETH), address(testToken), rewardAmount, false, approveSignature);
         vm.stopPrank();
 
         vm.startPrank(user3);
@@ -384,7 +395,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         volume /= 100;
         WETH.mint(user3, volume + 10);
         WETH.approve(address(launchpad), volume + 10);
-        launchpad.buyTokens(address(testToken), address(WETH), volume, user3);
+        launchpad.buyTokens(address(testToken), address(WETH), volume, user3, bytes(""));
 
         Types.User memory userInfo = launchpad.userInfo(address(testToken), user3);
         assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);

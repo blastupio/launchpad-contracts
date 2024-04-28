@@ -194,7 +194,13 @@ contract YieldStaking is OwnableUpgradeable {
         emit Staked(depositToken, msg.sender, amount);
     }
 
-    function claimReward(address targetToken, address rewardToken, uint256 rewardAmount, bool getETH) external {
+    function claimReward(
+        address targetToken,
+        address rewardToken,
+        uint256 rewardAmount,
+        bool getETH,
+        bytes memory signature
+    ) external {
         StakingInfo storage info = stakingInfos[targetToken];
         StakingUser storage user = info.users[msg.sender];
 
@@ -224,7 +230,7 @@ contract YieldStaking is OwnableUpgradeable {
             if (IERC20Rebasing(targetToken).allowance(address(this), address(launchpad)) < rewardAmount) {
                 IERC20Rebasing(targetToken).forceApprove(address(launchpad), type(uint256).max);
             }
-            launchpad.buyTokens(rewardToken, targetToken, rewardAmount, msg.sender);
+            launchpad.buyTokens(rewardToken, targetToken, rewardAmount, msg.sender, signature);
         }
 
         emit RewardClaimed(targetToken, msg.sender, rewardToken, rewardAmount);

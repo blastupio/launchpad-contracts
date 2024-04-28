@@ -181,15 +181,15 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit UserRegistered(msg.sender, token, tier);
     }
 
-    function _assertUserBalanceSignature(uint256 amountOfTokens, bytes memory signature) internal view {
+    function _validateUserBalanceSignature(uint256 amountOfTokens, bytes memory signature) internal view {
         address signer_ = keccak256(abi.encodePacked(msg.sender, amountOfTokens, address(this), block.chainid))
             .toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: Invalid signature");
     }
 
-    function _assertApproveSignature(address token, bytes memory signature) internal view {
-        address signer_ = keccak256(abi.encodePacked(msg.sender, token, address(this), block.chainid))
-            .toEthSignedMessageHash().recover(signature);
+    function _validateApproveSignature(address user, address token, bytes memory signature) internal view {
+        address signer_ = keccak256(abi.encodePacked(user, token, address(this), block.chainid)).toEthSignedMessageHash(
+        ).recover(signature);
         require(signer_ == signer, "BlastUP: Invalid signature");
     }
 
@@ -288,7 +288,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         virtual
     {
         require(!placedTokens[token].approved, "BlastUP: you need to use register with approve function");
-        _assertUserBalanceSignature(amountOfTokens, signature);
+        _validateUserBalanceSignature(amountOfTokens, signature);
         _register(amountOfTokens, token, tier);
     }
 
@@ -299,12 +299,12 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         bytes memory signature,
         bytes memory approveSignature
     ) external virtual {
-        _assertApproveSignature(token, approveSignature);
-        _assertUserBalanceSignature(amountOfTokens, signature);
+        _validateApproveSignature(msg.sender, token, approveSignature);
+        _validateUserBalanceSignature(amountOfTokens, signature);
         _register(amountOfTokens, token, tier);
     }
 
-    function buyTokens(address token, address paymentContract, uint256 volume, address receiver)
+    function buyTokens(address token, address paymentContract, uint256 volume, address receiver, bytes memory signature)
         external
         payable
         virtual
@@ -337,7 +337,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             require(userAllowedAllocation(token, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
-
+            _validateApproveSignature(receiver, token, signature);
             placedToken.volumeForYieldStakers -= tokensAmount;
         } else {
             revert InvalidSaleStatus(token);
