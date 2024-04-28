@@ -52,10 +52,13 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         _disableInitializers();
     }
 
-    function initialize(address _owner, address _signer, address _operator, address _points) public initializer {
+    function initialize(address _owner, address _signer, address _operator, address _points, address _pointsOperator)
+        public
+        initializer
+    {
         signer = _signer;
         operator = _operator;
-        IBlastPoints(_points).configurePointsOperator(_owner);
+        IBlastPoints(_points).configurePointsOperator(_pointsOperator);
 
         minAmountForTier[Types.UserTiers.BRONZE] = 2_000;
         minAmountForTier[Types.UserTiers.SILVER] = 5_000;
@@ -178,6 +181,18 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit UserRegistered(msg.sender, token, tier);
     }
 
+    function _assertUserBalanceSignature(uint256 amountOfTokens, bytes memory signature) internal view {
+        address signer_ = keccak256(abi.encodePacked(msg.sender, amountOfTokens, address(this), block.chainid))
+            .toEthSignedMessageHash().recover(signature);
+        require(signer_ == signer, "BlastUP: Invalid signature");
+    }
+
+    function _assertApproveSignature(address token, bytes memory signature) internal view {
+        address signer_ = keccak256(abi.encodePacked(msg.sender, token, address(this), block.chainid))
+            .toEthSignedMessageHash().recover(signature);
+        require(signer_ == signer, "BlastUP: Invalid signature");
+    }
+
     /* ========== FUNCTIONS ========== */
 
     function setSigner(address _signer) external onlyOwner {
@@ -268,12 +283,24 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit TokenPlaced(token);
     }
 
-    function register(address token, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature) external virtual {
-        address signer_ = keccak256(abi.encodePacked(msg.sender, amountOfTokens, address(this), block.chainid))
-            .toEthSignedMessageHash().recover(signature);
+    function register(address token, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
+        external
+        virtual
+    {
+        require(!placedTokens[token].approved, "BlastUP: you need to use register with approve function");
+        _assertUserBalanceSignature(amountOfTokens, signature);
+        _register(amountOfTokens, token, tier);
+    }
 
-        require(signer_ == signer, "BlastUP: Invalid signature");
-
+    function registerWithApprove(
+        address token,
+        Types.UserTiers tier,
+        uint256 amountOfTokens,
+        bytes memory signature,
+        bytes memory approveSignature
+    ) external virtual {
+        _assertApproveSignature(token, approveSignature);
+        _assertUserBalanceSignature(amountOfTokens, signature);
         _register(amountOfTokens, token, tier);
     }
 
@@ -287,7 +314,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         Types.User storage user = users[token][receiver];
         Types.SaleStatus status = getStatus(token);
 
-        require(status == Types.SaleStatus.PUBLIC_SALE || status == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status");
+        require(
+            status == Types.SaleStatus.PUBLIC_SALE || status == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status"
+        );
 
         if (msg.value > 0) {
             paymentContract = address(WETH);

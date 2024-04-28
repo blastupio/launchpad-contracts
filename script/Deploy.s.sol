@@ -3,7 +3,11 @@
 pragma solidity ^0.8.1;
 
 import {Script, console} from "forge-std/Script.sol";
-import {TransparentUpgradeableProxy, ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    TransparentUpgradeableProxy,
+    ProxyAdmin,
+    ITransparentUpgradeableProxy
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {YieldStaking} from "../src/YieldStaking.sol";
 import {Launchpad, MessageHashUtils, ECDSA} from "../src/Launchpad.sol";
 import {ILaunchpad} from "../src/interfaces/ILaunchpad.sol";
@@ -25,7 +29,10 @@ import {WETHRebasingTestnetMock} from "../src/mocks/WETHRebasingTestnetMock.sol"
 contract DeployScript is Script {
     using SafeERC20 for IERC20;
 
-    function _deploy(address WETH, address USDB, address oracle, address points) public returns(Launchpad launchpad, YieldStaking staking, address proxyAdmin) {
+    function _deploy(address WETH, address USDB, address oracle, address points)
+        public
+        returns (Launchpad launchpad, YieldStaking staking, address proxyAdmin)
+    {
         (, address deployer,) = vm.readCallers();
 
         uint256 nonce = vm.getNonce(deployer);
@@ -35,7 +42,7 @@ contract DeployScript is Script {
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
                     deployer,
-                    abi.encodeCall(Launchpad.initialize, (deployer, deployer, deployer, points))
+                    abi.encodeCall(Launchpad.initialize, (deployer, deployer, deployer, points, deployer))
                 )
             )
         );
@@ -46,7 +53,7 @@ contract DeployScript is Script {
                     new TransparentUpgradeableProxy(
                         address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
                         deployer,
-                        abi.encodeCall(YieldStaking.initialize, (deployer, points))
+                        abi.encodeCall(YieldStaking.initialize, (deployer, points, deployer))
                     )
                 )
             )
@@ -85,9 +92,9 @@ contract DeployScript is Script {
 
         (, address deployer,) = vm.readCallers();
 
-        ERC20Mock blp = new ERC20Mock("BlastUP", "BLP", 18); 
+        ERC20Mock blp = new ERC20Mock("BlastUP", "BLP", 18);
 
-        BLPStaking blpStaking = new BLPStaking(address(blp), deployer, points);
+        BLPStaking blpStaking = new BLPStaking(address(blp), deployer, points, deployer);
         ProxyAdmin(proxyAdmin).upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(yieldStaking))),

@@ -13,7 +13,8 @@ interface ILaunchpad {
 
     function placeTokens(LaunchpadDataTypes.PlacedToken memory _placedToken, address token) external;
 
-    function register(address token, LaunchpadDataTypes.UserTiers tier, uint256 amountOfTokens, bytes memory signature) external;
+    function register(address token, LaunchpadDataTypes.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
+        external;
 
     function buyTokens(address token, address paymentContract, uint256 volume, address receiver)
         external

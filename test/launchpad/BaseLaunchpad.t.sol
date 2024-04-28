@@ -76,7 +76,7 @@ contract BaseLaunchpadTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
                     admin,
-                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin, address(points)))
+                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin, address(points), admin))
                 )
             )
         );
@@ -87,7 +87,7 @@ contract BaseLaunchpadTest is Test {
                     new TransparentUpgradeableProxy(
                         address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
                         admin,
-                        abi.encodeCall(YieldStaking.initialize, (admin, address(points)))
+                        abi.encodeCall(YieldStaking.initialize, (admin, address(points), admin))
                     )
                 )
             )

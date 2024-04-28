@@ -48,5 +48,6 @@ library LaunchpadDataTypes {
         uint8 tokenDecimals;
         uint8 tgePercent;
         bool initialized;
+        bool approved;
     }
 }

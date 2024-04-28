@@ -27,9 +27,9 @@ contract BLPStaking is Ownable {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _stakeToken, address _owner, address _points) Ownable(_owner) {
+    constructor(address _stakeToken, address _owner, address _points, address _pointsOperator) Ownable(_owner) {
         stakeToken = IERC20Metadata(_stakeToken);
-        IBlastPoints(_points).configurePointsOperator(_owner);
+        IBlastPoints(_points).configurePointsOperator(_pointsOperator);
     }
 
     /* ========== VIEWS ========== */

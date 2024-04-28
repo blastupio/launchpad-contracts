@@ -33,7 +33,8 @@ contract PlaceTokensTest is BaseLaunchpadTest {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
         });
 
         vm.startPrank(admin);

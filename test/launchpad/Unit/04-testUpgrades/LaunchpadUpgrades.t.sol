@@ -12,7 +12,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
     function setUp() public override {
         super.setUp();
         vm.startPrank(admin);
-        blpStaking = new BLPStaking(address(blp), admin, address(points));
+        blpStaking = new BLPStaking(address(blp), admin, address(points), admin);
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(staking))),
@@ -52,7 +52,8 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
         });
 
         vm.startPrank(admin);
@@ -86,7 +87,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
         vm.startPrank(user);
         vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).register(address(testToken), tier, amount, bytes(''));
+        ILaunchpadV2(address(launchpad)).register(address(testToken), tier, amount, bytes(""));
         ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tier);
         Types.User memory userInfo = launchpad.userInfo(address(testToken), user);
 

@@ -31,7 +31,7 @@ contract BaseBLPStaking is Test {
         vm.startPrank(admin);
         blp = new ERC20Mock("BlastUp", "BLP", 18);
         points = new BlastPointsMock();
-        stakingBLP = new BLPStaking(address(blp), admin, address(points));
+        stakingBLP = new BLPStaking(address(blp), admin, address(points), admin);
         vm.stopPrank();
     }
 }

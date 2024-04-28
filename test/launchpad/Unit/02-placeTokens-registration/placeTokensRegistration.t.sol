@@ -7,14 +7,22 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
-    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
+    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory signature) {
         vm.startPrank(admin);
         bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        signature = abi.encodePacked(r, s, v);
         vm.stopPrank();
-        return signature;
+    }
+
+    function _getApproveSignature(address _user, address _token) internal returns (bytes memory signature) {
+        vm.startPrank(admin);
+        bytes32 digest =
+            keccak256(abi.encodePacked(_user, _token, address(launchpad), block.chainid)).toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
     }
 
     modifier placeTokens() {
@@ -46,7 +54,50 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
+        });
+
+        vm.startPrank(admin);
+        testToken.mint(admin, 100 * 10 ** 19);
+        testToken.approve(address(launchpad), type(uint256).max);
+        launchpad.placeTokens(input, address(testToken));
+        vm.stopPrank();
+        vm.warp(input.registrationStart);
+        _;
+    }
+
+    modifier placeTokensWithApprove() {
+        uint256 initialVolume = 100 * 10 ** 18;
+        uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
+        uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
+        uint256 volumeForYieldStakers = initialVolume * 20 / 100;
+        address addressForCollected = address(2);
+        uint256 price = 10 ** 18;
+        uint256 vestingDuration = 60;
+        uint8 tgePercent = 15;
+
+        Types.PlacedToken memory input = Types.PlacedToken({
+            price: price,
+            initialVolumeForHighTiers: initialVolumeForHighTiers,
+            initialVolumeForLowTiers: initialVolumeForLowTiers,
+            volumeForYieldStakers: volumeForYieldStakers,
+            addressForCollected: addressForCollected,
+            volume: initialVolume,
+            registrationStart: block.timestamp + 1,
+            registrationEnd: block.timestamp + 11,
+            publicSaleStart: block.timestamp + 21,
+            fcfsSaleStart: type(uint256).max - 3,
+            saleEnd: type(uint256).max - 2,
+            tgeStart: type(uint256).max - 1,
+            vestingStart: type(uint256).max,
+            vestingDuration: vestingDuration,
+            tgePercent: tgePercent,
+            initialized: true,
+            lowTiersWeightsSum: 0,
+            highTiersWeightsSum: 0,
+            tokenDecimals: 18,
+            approved: true
         });
 
         vm.startPrank(admin);
@@ -97,7 +148,8 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
         });
 
         vm.startPrank(admin);
@@ -248,6 +300,25 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
 
         vm.startPrank(user);
         launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        Types.User memory userInfo = launchpad.userInfo(address(testToken), user);
+
+        assertEq(uint8(userInfo.tier), uint8(tier));
+        assertEq(userInfo.registered, true);
+        assertEq(launchpad.userAllowedAllocation(address(testToken), user), 0);
+        vm.stopPrank();
+    }
+
+    function test_RegisterWithApprove() public placeTokensWithApprove {
+        uint256 amountOfTokens = 2000; // BLP
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+
+        bytes memory signature = _getSignature(user, amountOfTokens);
+        bytes memory approveSignature = _getApproveSignature(user, address(testToken));
+
+        vm.startPrank(user);
+        vm.expectRevert("BlastUP: you need to use register with approve function");
+        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.registerWithApprove(address(testToken), tier, amountOfTokens, signature, approveSignature);
         Types.User memory userInfo = launchpad.userInfo(address(testToken), user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));

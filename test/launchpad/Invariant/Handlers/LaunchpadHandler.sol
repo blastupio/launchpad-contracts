@@ -72,24 +72,38 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         adminPrivateKey = _adminPrivateKey;
     }
 
-    function getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
+    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory signature) {
         vm.startPrank(launchpad.owner());
         bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        signature = abi.encodePacked(r, s, v);
         vm.stopPrank();
-        return signature;
+    }
+
+    function _getApproveSignature(address _user, address _token) internal returns (bytes memory signature) {
+        vm.startPrank(launchpad.owner());
+        bytes32 digest =
+            keccak256(abi.encodePacked(_user, _token, address(launchpad), block.chainid)).toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
     }
 
     function registerUser(address account, address token) external {
         uint256 _address = uint256(uint160(account) + _tokens.count());
         Types.UserTiers tier = Types.UserTiers(_address % 6);
         uint256 amountOfTokens = launchpad.minAmountForTier(tier) + _address % 10000;
-        bytes memory signature = getSignature(account, amountOfTokens);
+        bytes memory signature = _getSignature(account, amountOfTokens);
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
 
         vm.startPrank(account);
-        launchpad.register(token, tier, amountOfTokens, signature);
+        if (placedToken.approved) {
+            bytes memory approveSignature = _getApproveSignature(account, token);
+            launchpad.registerWithApprove(token, tier, amountOfTokens, signature, approveSignature);
+        } else {
+            launchpad.register(token, tier, amountOfTokens, signature);
+        }
         vm.stopPrank();
     }
 
@@ -139,7 +153,8 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
         });
 
         vm.startPrank(launchpad.owner());

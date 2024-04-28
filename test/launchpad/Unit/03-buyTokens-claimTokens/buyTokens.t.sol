@@ -73,9 +73,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         }
     }
 
-    function _buyFromStaking(Types.PlacedToken memory placedToken, address _user, address paymentContract)
-        internal
-    {
+    function _buyFromStaking(Types.PlacedToken memory placedToken, address _user, address paymentContract) internal {
         ERC20RebasingMock(paymentContract).addRewards(address(staking), 1e18);
         uint256 rewardAmount;
         (, uint256 reward) = staking.balanceAndRewards(paymentContract, _user);
@@ -134,7 +132,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
         });
 
         vm.startPrank(admin);
@@ -186,7 +185,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
             initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false
         });
 
         vm.startPrank(admin);
