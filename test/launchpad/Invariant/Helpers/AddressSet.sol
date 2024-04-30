@@ -36,11 +36,11 @@ library LibAddressSet {
         }
     }
 
-    function randToken(AddressSet storage s, uint256 seed) internal view returns (address) {
+    function randToken(AddressSet storage s, uint256 seed) internal view returns (address, uint256) {
         if (s.addrs.length > 0) {
-            return s.addrs[seed % s.addrs.length];
+            return (s.addrs[seed % s.addrs.length], seed % s.addrs.length);
         } else {
-            return address(0);
+            return (address(0), 0);
         }
     }
 
@@ -50,11 +50,11 @@ library LibAddressSet {
         }
     }
 
-    function forEachPlusArgument(AddressSet storage s, address token, function(address, address) external func)
+    function forEachPlusArgument(AddressSet storage s, uint256 id, function(address, uint) external func)
         internal
     {
         for (uint256 i; i < s.addrs.length; ++i) {
-            func(s.addrs[i], token);
+            func(s.addrs[i], id);
         }
     }
 

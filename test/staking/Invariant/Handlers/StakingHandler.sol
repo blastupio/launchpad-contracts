@@ -172,7 +172,7 @@ contract StakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
         uint256 balanceBefore = getUserBalance(rewardToken, currentActor);
         bytes memory approveSignature = _getApproveSignature(currentActor, rewardToken);
         vm.startPrank(currentActor);
-        staking.claimReward(targetToken, rewardToken, rewardAmount, false, approveSignature);
+        staking.claimReward(targetToken, rewardToken, rewardAmount, false, approveSignature, 0);
         assertEq(getUserBalance(rewardToken, currentActor), balanceBefore - rewardAmount);
     }
 

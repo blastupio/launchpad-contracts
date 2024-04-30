@@ -47,7 +47,7 @@ library LaunchpadDataTypes {
         uint256 vestingDuration;
         uint8 tokenDecimals;
         uint8 tgePercent;
-        bool initialized;
         bool approved;
+        address token;
     }
 }

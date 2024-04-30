@@ -17,8 +17,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    error InvalidTokenForBuying(address token);
-    error InvalidSaleStatus(address token);
+    error InvalidSaleStatus(uint256 id);
 
     /* ========== IMMUTABLE VARIABLES ========== */
     address public immutable yieldStaking;
@@ -34,10 +33,12 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     address public signer;
     address public operator;
 
-    mapping(address => Types.PlacedToken) public placedTokens;
+    Types.PlacedToken[] public placedTokens;
+
+    // mapping(uint256 => Types.PlacedToken) public placedTokens;
     mapping(Types.UserTiers => uint256) public minAmountForTier;
     mapping(Types.UserTiers => uint256) public weightForTier;
-    mapping(address => mapping(address => Types.User)) public users;
+    mapping(uint256 => mapping(address => Types.User)) public users;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -79,55 +80,55 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     /* ========== VIEWS ========== */
 
-    function userInfo(address token, address user) public view returns (Types.User memory) {
-        return users[token][user];
+    function userInfo(uint256 id, address user) public view returns (Types.User memory) {
+        return users[id][user];
     }
 
-    function getPlacedToken(address token) external view returns (Types.PlacedToken memory) {
-        return placedTokens[token];
+    function getPlacedToken(uint256 id) external view returns (Types.PlacedToken memory) {
+        return placedTokens[id];
     }
 
-    function getStatus(address token) public view returns (Types.SaleStatus) {
-        if (!placedTokens[token].initialized) return Types.SaleStatus.NOT_PLACED;
-        if (placedTokens[token].registrationStart > block.timestamp) return Types.SaleStatus.BEFORE_REGISTARTION;
-        if (placedTokens[token].registrationEnd > block.timestamp) return Types.SaleStatus.REGISTRATION;
-        if (placedTokens[token].publicSaleStart > block.timestamp) return Types.SaleStatus.POST_REGISTRATION;
-        if (placedTokens[token].fcfsSaleStart > block.timestamp) return Types.SaleStatus.PUBLIC_SALE;
-        if (placedTokens[token].saleEnd > block.timestamp) return Types.SaleStatus.FCFS_SALE;
+    function getStatus(uint256 id) public view returns (Types.SaleStatus) {
+        if (placedTokens.length <= id) return Types.SaleStatus.NOT_PLACED;
+        if (placedTokens[id].registrationStart > block.timestamp) return Types.SaleStatus.BEFORE_REGISTARTION;
+        if (placedTokens[id].registrationEnd > block.timestamp) return Types.SaleStatus.REGISTRATION;
+        if (placedTokens[id].publicSaleStart > block.timestamp) return Types.SaleStatus.POST_REGISTRATION;
+        if (placedTokens[id].fcfsSaleStart > block.timestamp) return Types.SaleStatus.PUBLIC_SALE;
+        if (placedTokens[id].saleEnd > block.timestamp) return Types.SaleStatus.FCFS_SALE;
         return Types.SaleStatus.POST_SALE;
     }
 
-    function userAllowedAllocation(address token, address user) public view returns (uint256) {
-        if (!users[token][user].registered) return 0;
-        if (getStatus(token) == Types.SaleStatus.PUBLIC_SALE) {
-            Types.UserTiers tier = users[token][user].tier;
+    function userAllowedAllocation(uint256 id, address user) public view returns (uint256) {
+        if (!users[id][user].registered) return 0;
+        if (getStatus(id) == Types.SaleStatus.PUBLIC_SALE) {
+            Types.UserTiers tier = users[id][user].tier;
             uint256 weight = weightForTier[tier];
-            uint256 boughtAmount = users[token][user].boughtAmount;
-            if (users[token][user].tier < Types.UserTiers.TITANIUM) {
-                return weight * placedTokens[token].initialVolumeForLowTiers / placedTokens[token].lowTiersWeightsSum
+            uint256 boughtAmount = users[id][user].boughtAmount;
+            if (users[id][user].tier < Types.UserTiers.TITANIUM) {
+                return weight * placedTokens[id].initialVolumeForLowTiers / placedTokens[id].lowTiersWeightsSum
                     - boughtAmount;
             } else {
-                return weight * placedTokens[token].initialVolumeForHighTiers / placedTokens[token].highTiersWeightsSum
+                return weight * placedTokens[id].initialVolumeForHighTiers / placedTokens[id].highTiersWeightsSum
                     - boughtAmount;
             }
-        } else if (users[token][user].tier >= Types.UserTiers.TITANIUM) {
-            return placedTokens[token].volume;
+        } else if (users[id][user].tier >= Types.UserTiers.TITANIUM) {
+            return placedTokens[id].volume;
         } else {
             return 0;
         }
     }
 
-    function getClaimableAmount(address token, address user) public view returns (uint256) {
-        uint256 tgeAmount = users[token][user].boughtAmount * placedTokens[token].tgePercent / 100;
-        uint256 vestedAmount = users[token][user].boughtAmount - tgeAmount;
-        uint256 claimedAmount = users[token][user].claimedAmount;
+    function getClaimableAmount(uint256 id, address user) public view returns (uint256) {
+        uint256 tgeAmount = users[id][user].boughtAmount * placedTokens[id].tgePercent / 100;
+        uint256 vestedAmount = users[id][user].boughtAmount - tgeAmount;
+        uint256 claimedAmount = users[id][user].claimedAmount;
 
-        if (block.timestamp < placedTokens[token].tgeStart) return 0;
-        if (block.timestamp < placedTokens[token].vestingStart) return tgeAmount - claimedAmount;
+        if (block.timestamp < placedTokens[id].tgeStart) return 0;
+        if (block.timestamp < placedTokens[id].vestingStart) return tgeAmount - claimedAmount;
 
         return tgeAmount
             + Math.min(
-                vestedAmount * (block.timestamp - placedTokens[token].vestingStart) / placedTokens[token].vestingDuration,
+                vestedAmount * (block.timestamp - placedTokens[id].vestingStart) / placedTokens[id].vestingDuration,
                 vestedAmount
             ) - claimedAmount;
     }
@@ -161,11 +162,11 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return tokensAmount;
     }
 
-    function _register(uint256 amountOfTokens, address token, Types.UserTiers tier) internal {
-        Types.PlacedToken storage placedToken = placedTokens[token];
-        Types.User storage user = users[token][msg.sender];
+    function _register(uint256 amountOfTokens, uint256 id, Types.UserTiers tier) internal {
+        Types.PlacedToken storage placedToken = placedTokens[id];
+        Types.User storage user = users[id][msg.sender];
 
-        require(getStatus(token) == Types.SaleStatus.REGISTRATION, "BlastUP: invalid status");
+        require(getStatus(id) == Types.SaleStatus.REGISTRATION, "BlastUP: invalid status");
         require(!user.registered, "BlastUP: you are already registered");
         require(minAmountForTier[tier] <= amountOfTokens, "BlastUP: you do not have enough BLP tokens for that tier");
 
@@ -178,7 +179,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         user.tier = tier;
         user.registered = true;
 
-        emit UserRegistered(msg.sender, token, tier);
+        emit UserRegistered(msg.sender, placedToken.token, id, tier);
     }
 
     function _validateUserBalanceSignature(uint256 amountOfTokens, bytes memory signature) internal view {
@@ -187,8 +188,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         require(signer_ == signer, "BlastUP: Invalid signature");
     }
 
-    function _validateApproveSignature(address user, address token, bytes memory signature) internal view {
-        address signer_ = keccak256(abi.encodePacked(user, token, address(this), block.chainid)).toEthSignedMessageHash(
+    function _validateApproveSignature(address user, uint256 id, bytes memory signature) internal view {
+        address signer_ = keccak256(abi.encodePacked(user, id, address(this), block.chainid)).toEthSignedMessageHash(
         ).recover(signature);
         require(signer_ == signer, "BlastUP: Invalid signature");
     }
@@ -221,50 +222,47 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         weightForTier[Types.UserTiers.DIAMOND] = weights[5];
     }
 
-    function setRegistrationStart(address token, uint256 _registrationStart) external onlyOperatorOrOwner {
+    function setRegistrationStart(uint256 id, uint256 _registrationStart) external onlyOperatorOrOwner {
         require(_registrationStart > block.timestamp, "BlastUP: invalid registartion start timestamp");
-        placedTokens[token].registrationStart = _registrationStart;
+        placedTokens[id].registrationStart = _registrationStart;
     }
 
-    function setRegistrationEnd(address token, uint256 _registrationEnd) external onlyOperatorOrOwner {
+    function setRegistrationEnd(uint256 id, uint256 _registrationEnd) external onlyOperatorOrOwner {
         require(_registrationEnd > block.timestamp, "BlastUP: invalid registartion end timestamp");
-        placedTokens[token].registrationEnd = _registrationEnd;
+        placedTokens[id].registrationEnd = _registrationEnd;
     }
 
-    function setPublicSaleStart(address token, uint256 _publicSaleStart) external onlyOperatorOrOwner {
+    function setPublicSaleStart(uint256 id, uint256 _publicSaleStart) external onlyOperatorOrOwner {
         require(_publicSaleStart > block.timestamp, "BlastUP: invalid public sale start timestamp");
-        placedTokens[token].publicSaleStart = _publicSaleStart;
+        placedTokens[id].publicSaleStart = _publicSaleStart;
     }
 
-    function setFCFSSaleStart(address token, uint256 _fcfsSaleStart) external onlyOperatorOrOwner {
+    function setFCFSSaleStart(uint256 id, uint256 _fcfsSaleStart) external onlyOperatorOrOwner {
         require(_fcfsSaleStart > block.timestamp, "BlastUP: invalid fcfs start timestamp");
-        placedTokens[token].fcfsSaleStart = _fcfsSaleStart;
+        placedTokens[id].fcfsSaleStart = _fcfsSaleStart;
     }
 
-    function setSaleEnd(address token, uint256 _saleEnd) external onlyOperatorOrOwner {
+    function setSaleEnd(uint256 id, uint256 _saleEnd) external onlyOperatorOrOwner {
         require(_saleEnd > block.timestamp, "BlastUP: invalid sale end timestamp");
-        placedTokens[token].saleEnd = _saleEnd;
+        placedTokens[id].saleEnd = _saleEnd;
     }
 
-    function setTgeStart(address token, uint256 _tgeStart) external onlyOperatorOrOwner {
+    function setTgeStart(uint256 id, uint256 _tgeStart) external onlyOperatorOrOwner {
         require(_tgeStart > block.timestamp, "BlastUP: invalid tge timestamp");
-
-        placedTokens[token].tgeStart = _tgeStart;
+        placedTokens[id].tgeStart = _tgeStart;
     }
 
-    function setVestingStart(address token, uint256 _vestingStart) external onlyOperatorOrOwner {
+    function setVestingStart(uint256 id, uint256 _vestingStart) external onlyOperatorOrOwner {
         require(_vestingStart > block.timestamp, "BlastUP: invalid vesting start timestamp");
-
-        placedTokens[token].vestingStart = _vestingStart;
+        placedTokens[id].vestingStart = _vestingStart;
     }
 
-    function placeTokens(Types.PlacedToken memory _placedToken, address token) external onlyOwner {
-        require(!placedTokens[token].initialized, "BlastUP: This token was already placed");
-
+    function placeTokens(Types.PlacedToken memory _placedToken) external onlyOwner {
+        uint256 id = placedTokens.length;
         uint256 sumVolume = _placedToken.initialVolumeForHighTiers + _placedToken.initialVolumeForLowTiers
             + _placedToken.volumeForYieldStakers;
         require(sumVolume > 0, "BlastUP: initial Volume must be > 0");
-        require(_placedToken.tokenDecimals == IERC20Metadata(token).decimals(), "BlastUP: invalid decimals");
+        require(_placedToken.tokenDecimals == IERC20Metadata(_placedToken.token).decimals(), "BlastUP: invalid decimals");
         require(
             _placedToken.registrationStart > block.timestamp
                 && _placedToken.registrationEnd > _placedToken.registrationStart
@@ -276,43 +274,43 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         );
         require(_placedToken.volume == sumVolume, "BlastUP: sum of initial volumes must be equal to volume param");
 
-        placedTokens[token] = _placedToken;
+        placedTokens.push(_placedToken);
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), sumVolume);
+        IERC20(_placedToken.token).safeTransferFrom(msg.sender, address(this), sumVolume);
 
-        emit TokenPlaced(token);
+        emit TokenPlaced(_placedToken.token, id);
     }
 
-    function register(address token, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
+    function register(uint256 id, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
         external
         virtual
     {
-        require(!placedTokens[token].approved, "BlastUP: you need to use register with approve function");
+        require(!placedTokens[id].approved, "BlastUP: you need to use register with approve function");
         _validateUserBalanceSignature(amountOfTokens, signature);
-        _register(amountOfTokens, token, tier);
+        _register(amountOfTokens, id, tier);
     }
 
     function registerWithApprove(
-        address token,
+        uint256 id,
         Types.UserTiers tier,
         uint256 amountOfTokens,
         bytes memory signature,
         bytes memory approveSignature
     ) external virtual {
-        _validateApproveSignature(msg.sender, token, approveSignature);
+        _validateApproveSignature(msg.sender, id, approveSignature);
         _validateUserBalanceSignature(amountOfTokens, signature);
-        _register(amountOfTokens, token, tier);
+        _register(amountOfTokens, id, tier);
     }
 
-    function buyTokens(address token, address paymentContract, uint256 volume, address receiver, bytes memory signature)
+    function buyTokens(uint256 id, address paymentContract, uint256 volume, address receiver, bytes memory signature)
         external
         payable
         virtual
         returns (uint256)
     {
-        Types.PlacedToken storage placedToken = placedTokens[token];
-        Types.User storage user = users[token][receiver];
-        Types.SaleStatus status = getStatus(token);
+        Types.PlacedToken storage placedToken = placedTokens[id];
+        Types.User storage user = users[id][receiver];
+        Types.SaleStatus status = getStatus(id);
 
         require(
             status == Types.SaleStatus.PUBLIC_SALE || status == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status"
@@ -334,13 +332,13 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
         if (msg.sender != yieldStaking) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
-            require(userAllowedAllocation(token, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
+            require(userAllowedAllocation(id, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
-            _validateApproveSignature(receiver, token, signature);
+            _validateApproveSignature(receiver, id, signature);
             placedToken.volumeForYieldStakers -= tokensAmount;
         } else {
-            revert InvalidSaleStatus(token);
+            revert InvalidSaleStatus(id);
         }
 
         user.boughtAmount += tokensAmount;
@@ -353,40 +351,41 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
         }
 
-        emit TokensBought(token, receiver, tokensAmount);
+        emit TokensBought(placedToken.token, receiver, id, tokensAmount);
 
         return tokensAmount;
     }
 
-    function claimRemainders(address token) external onlyOperatorOrOwner {
-        Types.PlacedToken storage placedToken = placedTokens[token];
+    function claimRemainders(uint256 id) external onlyOperatorOrOwner {
+        Types.PlacedToken storage placedToken = placedTokens[id];
 
-        require(getStatus(token) == Types.SaleStatus.POST_SALE, "BlastUP: invalid status");
+        require(getStatus(id) == Types.SaleStatus.POST_SALE, "BlastUP: invalid status");
 
         uint256 volume = placedToken.volume;
 
         placedToken.volume = 0;
         placedToken.volumeForYieldStakers = 0;
         // transfer remaining tokens to the DAO address
-        IERC20(token).safeTransfer(owner(), volume);
+        IERC20(placedToken.token).safeTransfer(owner(), volume);
     }
 
-    function claimTokens(address token) external {
-        Types.User storage user = users[token][msg.sender];
+    function claimTokens(uint256 id) external {
+        Types.PlacedToken storage placedToken = placedTokens[id];
+        Types.User storage user = users[id][msg.sender];
 
-        uint256 claimableAmount = getClaimableAmount(token, msg.sender);
+        uint256 claimableAmount = getClaimableAmount(id, msg.sender);
 
         require(claimableAmount > 0, "BlastUP: you have not enough claimable tokens");
 
         user.claimedAmount += claimableAmount;
-        IERC20(token).safeTransfer(msg.sender, claimableAmount);
+        IERC20(placedToken.token).safeTransfer(msg.sender, claimableAmount);
 
-        emit TokensClaimed(token, msg.sender);
+        emit TokensClaimed(placedToken.token, id, msg.sender);
     }
 
     /* ========== EVENTS ========== */
-    event TokenPlaced(address token);
-    event UserRegistered(address indexed user, address indexed token, Types.UserTiers tier);
-    event TokensBought(address indexed token, address indexed buyer, uint256 amount);
-    event TokensClaimed(address token, address user);
+    event TokenPlaced(address indexed token, uint256 id);
+    event UserRegistered(address indexed user, address indexed token, uint256 id, Types.UserTiers tier);
+    event TokensBought(address indexed token, address indexed buyer, uint256 id, uint256 amount);
+    event TokensClaimed(address indexed token, uint256 id, address user);
 }

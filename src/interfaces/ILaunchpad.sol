@@ -5,28 +5,28 @@ pragma solidity ^0.8.25;
 import {LaunchpadDataTypes} from "../libraries/LaunchpadDataTypes.sol";
 
 interface ILaunchpad {
-    function userInfo(address token, address user) external view returns (LaunchpadDataTypes.User memory);
-    function userAllowedAllocation(address token, address user) external view returns (uint256);
-    function getClaimableAmount(address token, address user) external view returns (uint256);
-    function getStatus(address token) external view returns (LaunchpadDataTypes.SaleStatus);
+    function userInfo(uint256 id, address user) external view returns (LaunchpadDataTypes.User memory);
+    function userAllowedAllocation(uint256 id, address user) external view returns (uint256);
+    function getClaimableAmount(uint256 id, address user) external view returns (uint256);
+    function getStatus(uint256 id) external view returns (LaunchpadDataTypes.SaleStatus);
 
-    function placeTokens(LaunchpadDataTypes.PlacedToken memory _placedToken, address token) external;
+    function placeTokens(LaunchpadDataTypes.PlacedToken memory _placedToken) external;
 
-    function register(address token, LaunchpadDataTypes.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
+    function register(uint256 id, LaunchpadDataTypes.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
         external;
 
     function registerWithApprove(
-        address token,
+        uint256 id,
         LaunchpadDataTypes.UserTiers tier,
         uint256 amountOfTokens,
         bytes memory signature,
         bytes memory approveSignature
     ) external;
 
-    function buyTokens(address token, address paymentContract, uint256 volume, address receiver, bytes memory signature)
+    function buyTokens(uint256 id, address paymentContract, uint256 volume, address receiver, bytes memory signature)
         external
         payable
         returns (uint256);
 
-    function claimTokens(address token) external;
+    function claimTokens(uint256 id) external;
 }

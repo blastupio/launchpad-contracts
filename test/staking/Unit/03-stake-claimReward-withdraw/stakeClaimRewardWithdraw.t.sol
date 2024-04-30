@@ -19,7 +19,7 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
 
         staking.stake(address(USDB), 2e18);
         (, uint256 reward) = staking.balanceAndRewards(address(USDB), user);
-        staking.claimReward(address(USDB), address(USDB), reward, false, bytes(""));
+        staking.claimReward(address(USDB), address(USDB), reward, false, bytes(""), 0);
         vm.stopPrank();
         _;
     }
@@ -31,7 +31,7 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
 
         staking.stake(address(WETH), 2e18);
         (, uint256 reward) = staking.balanceAndRewards(address(WETH), user);
-        staking.claimReward(address(WETH), address(WETH), reward, false, bytes(""));
+        staking.claimReward(address(WETH), address(WETH), reward, false, bytes(""), 0);
         vm.stopPrank();
         _;
     }
@@ -83,7 +83,7 @@ contract StakeClaimRewardWithdrawTest is BaseStakingTest {
         (, uint256 reward) = staking.balanceAndRewards(_token, _user);
         uint256 balanceOfUserBefore = _getETH ? _user.balance : IERC20(_token).balanceOf(_user);
         vm.prank(_user);
-        staking.claimReward(_token, _token, reward, _getETH, bytes(""));
+        staking.claimReward(_token, _token, reward, _getETH, bytes(""), 0);
         if (_getETH) {
             assertEq(balanceOfUserBefore + reward, _user.balance);
         } else {
