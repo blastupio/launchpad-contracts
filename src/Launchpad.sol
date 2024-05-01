@@ -342,7 +342,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             _validateApproveSignature(receiver, id, signature);
             placedToken.volumeForYieldStakers -= tokensAmount;
         } else {
-            revert InvalidSaleStatus(id);
+            revert("Invalid sale status");
         }
 
         user.boughtAmount += tokensAmount;
