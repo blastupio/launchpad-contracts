@@ -50,9 +50,7 @@ library LibAddressSet {
         }
     }
 
-    function forEachPlusArgument(AddressSet storage s, uint256 id, function(address, uint) external func)
-        internal
-    {
+    function forEachPlusArgument(AddressSet storage s, uint256 id, function(address, uint) external func) internal {
         for (uint256 i; i < s.addrs.length; ++i) {
             func(s.addrs[i], id);
         }

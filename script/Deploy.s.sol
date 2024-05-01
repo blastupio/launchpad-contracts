@@ -67,8 +67,8 @@ contract DeployScript is Script {
     function deploySepolia() public {
         vm.startBroadcast();
 
-        ERC20RebasingMock USDB = ERC20RebasingTestnetMock(0xec43B9B8b4b556Fc9FD4B23EA958b17f05191C3b);
-        ERC20RebasingMock WETH = WETHRebasingTestnetMock(0xd3e1bD64041c57e4423B3A6144573e080E0a31c9);
+        ERC20RebasingMock USDB = ERC20RebasingTestnetMock(0x66Ed1EEB6CEF5D4aCE858890704Af9c339266276);
+        ERC20RebasingMock WETH = WETHRebasingTestnetMock(0x3470769fBA0Aa949ecdAF83CAD069Fa2DC677389);
         address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
         address points = 0x2fc95838c71e76ec69ff817983BFf17c710F34E0;
 
@@ -83,8 +83,8 @@ contract DeployScript is Script {
     function deploySepoliaV2() public {
         vm.startBroadcast();
 
-        address USDB = 0xec43B9B8b4b556Fc9FD4B23EA958b17f05191C3b;
-        address WETH = 0xd3e1bD64041c57e4423B3A6144573e080E0a31c9;
+        address USDB = 0x66Ed1EEB6CEF5D4aCE858890704Af9c339266276;
+        address WETH = 0x3470769fBA0Aa949ecdAF83CAD069Fa2DC677389;
         address oracle = 0xc447B8cAd2db7a8B0fDde540B038C9e06179c0f7;
         address points = 0x2fc95838c71e76ec69ff817983BFf17c710F34E0;
 

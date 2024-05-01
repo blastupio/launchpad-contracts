@@ -35,7 +35,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     Types.PlacedToken[] public placedTokens;
 
-    // mapping(uint256 => Types.PlacedToken) public placedTokens;
     mapping(Types.UserTiers => uint256) public minAmountForTier;
     mapping(Types.UserTiers => uint256) public weightForTier;
     mapping(uint256 => mapping(address => Types.User)) public users;
@@ -103,7 +102,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         if (getStatus(id) == Types.SaleStatus.PUBLIC_SALE) {
             Types.UserTiers tier = users[id][user].tier;
             uint256 weight = weightForTier[tier];
-            uint256 boughtAmount = users[id][user].boughtAmount;
+            uint256 boughtAmount = users[id][user].boughtPublicSale;
             if (users[id][user].tier < Types.UserTiers.TITANIUM) {
                 return weight * placedTokens[id].initialVolumeForLowTiers / placedTokens[id].lowTiersWeightsSum
                     - boughtAmount;
@@ -189,8 +188,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     }
 
     function _validateApproveSignature(address user, uint256 id, bytes memory signature) internal view {
-        address signer_ = keccak256(abi.encodePacked(user, id, address(this), block.chainid)).toEthSignedMessageHash(
-        ).recover(signature);
+        address signer_ = keccak256(abi.encodePacked(user, id, address(this), block.chainid)).toEthSignedMessageHash()
+            .recover(signature);
         require(signer_ == signer, "BlastUP: Invalid signature");
     }
 
@@ -262,7 +261,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         uint256 sumVolume = _placedToken.initialVolumeForHighTiers + _placedToken.initialVolumeForLowTiers
             + _placedToken.volumeForYieldStakers;
         require(sumVolume > 0, "BlastUP: initial Volume must be > 0");
-        require(_placedToken.tokenDecimals == IERC20Metadata(_placedToken.token).decimals(), "BlastUP: invalid decimals");
+        require(
+            _placedToken.tokenDecimals == IERC20Metadata(_placedToken.token).decimals(), "BlastUP: invalid decimals"
+        );
         require(
             _placedToken.registrationStart > block.timestamp
                 && _placedToken.registrationEnd > _placedToken.registrationStart
@@ -333,6 +334,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         if (msg.sender != yieldStaking) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
             require(userAllowedAllocation(id, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
+            if (status == Types.SaleStatus.PUBLIC_SALE) {
+                user.boughtPublicSale += tokensAmount;
+            }
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
             _validateApproveSignature(receiver, id, signature);

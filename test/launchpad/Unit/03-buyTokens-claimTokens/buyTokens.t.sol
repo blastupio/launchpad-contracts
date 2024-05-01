@@ -345,8 +345,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
         uint256 sumLowTiersUsersAllowedAllocation = launchpad.userAllowedAllocation(id, user);
         assertApproxEqAbs(sumLowTiersUsersAllowedAllocation, placedToken.initialVolumeForLowTiers, 10);
 
-        uint256 sumHighTiersUsersAllowedAllocation = launchpad.userAllowedAllocation(id, user3)
-            + launchpad.userAllowedAllocation(id, user4);
+        uint256 sumHighTiersUsersAllowedAllocation =
+            launchpad.userAllowedAllocation(id, user3) + launchpad.userAllowedAllocation(id, user4);
         assertApproxEqAbs(sumHighTiersUsersAllowedAllocation, placedToken.initialVolumeForHighTiers, 10);
 
         _buyTokens(placedToken, user, address(USDB));
@@ -422,10 +422,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.warp(placedToken.saleEnd + 6);
 
         if (placedToken.tgePercent > 0) {
-            assertEq(
-                placedToken.tgePercent * userInfo.boughtAmount / 100,
-                launchpad.getClaimableAmount(id, user)
-            );
+            assertEq(placedToken.tgePercent * userInfo.boughtAmount / 100, launchpad.getClaimableAmount(id, user));
             // users claims their rewards
             _usersClaimRewardsTge(user);
             _usersClaimRewardsTge(user3);
