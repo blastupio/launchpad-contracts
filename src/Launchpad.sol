@@ -339,7 +339,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             }
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
-            _validateApproveSignature(receiver, id, signature);
+            if (placedToken.approved) {
+                _validateApproveSignature(receiver, id, signature);
+            }
             placedToken.volumeForYieldStakers -= tokensAmount;
         } else {
             revert("Invalid sale status");
