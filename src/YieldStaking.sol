@@ -142,9 +142,19 @@ contract YieldStaking is OwnableUpgradeable {
         user.remainders = newBalance - newBalanceScaled.wadMul(info.lastIndex);
     }
 
-    function _convertETHToUSDB(uint256 volume) internal view returns (uint256) {
-        (, int256 ans,,,) = oracle.latestRoundData();
-        return uint256(ans) * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
+    function _getETHPrice() private view returns (uint256) {
+        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
+
+        require(answeredInRound >= roundID, "Stale price");
+        require(timestamp != 0, "Round not complete");
+        require(price > 0, "Chainlink price reporting 0");
+
+        return uint256(price);
+    }
+
+    function _convertETHToUSDB(uint256 volume) private view returns (uint256) {
+        // price * volume * real_usdb_decimals / (eth_decimals * oracle_decimals)
+        return _getETHPrice() * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
     }
 
     function _convertToUSDB(uint256 volume, address token) internal view returns (uint256) {
