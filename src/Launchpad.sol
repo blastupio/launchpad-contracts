@@ -334,6 +334,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     /// @notice Function for purchasing tokens from the given sale.
     /// Callable by either a registered user or YieldStaking contract.
+    /// @param signature Optional signature used when processing YieldStaking purchases of
+    /// tokens requiring approval.
     function buyTokens(uint256 id, address paymentContract, uint256 volume, address receiver, bytes memory signature)
         external
         payable
@@ -370,6 +372,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             }
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
+            // Validate signature for tokens requiring it.
             if (placedToken.approved) {
                 _validateApproveSignature(receiver, id, signature);
             }
