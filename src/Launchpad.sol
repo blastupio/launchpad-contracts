@@ -65,14 +65,14 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         minAmountForTier[Types.UserTiers.GOLD] = 10_000 * (10 ** 18);
         minAmountForTier[Types.UserTiers.TITANIUM] = 20_000 * (10 ** 18);
         minAmountForTier[Types.UserTiers.PLATINUM] = 50_000 * (10 ** 18);
-        minAmountForTier[Types.UserTiers.DIAMOND] = 150_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.DIAMOND] = 100_000 * (10 ** 18);
 
-        weightForTier[Types.UserTiers.BRONZE] = 20;
-        weightForTier[Types.UserTiers.SILVER] = 30;
-        weightForTier[Types.UserTiers.GOLD] = 50;
+        weightForTier[Types.UserTiers.BRONZE] = 10;
+        weightForTier[Types.UserTiers.SILVER] = 25;
+        weightForTier[Types.UserTiers.GOLD] = 65;
         weightForTier[Types.UserTiers.TITANIUM] = 10;
-        weightForTier[Types.UserTiers.PLATINUM] = 30;
-        weightForTier[Types.UserTiers.DIAMOND] = 60;
+        weightForTier[Types.UserTiers.PLATINUM] = 25;
+        weightForTier[Types.UserTiers.DIAMOND] = 65;
 
         __Ownable_init(_owner);
     }
