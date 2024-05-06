@@ -60,12 +60,12 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         operator = _operator;
         IBlastPoints(_points).configurePointsOperator(_pointsOperator);
 
-        minAmountForTier[Types.UserTiers.BRONZE] = 2_000;
-        minAmountForTier[Types.UserTiers.SILVER] = 5_000;
-        minAmountForTier[Types.UserTiers.GOLD] = 10_000;
-        minAmountForTier[Types.UserTiers.TITANIUM] = 20_000;
-        minAmountForTier[Types.UserTiers.PLATINUM] = 50_000;
-        minAmountForTier[Types.UserTiers.DIAMOND] = 150_000;
+        minAmountForTier[Types.UserTiers.BRONZE] = 2_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.SILVER] = 5_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.GOLD] = 10_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.TITANIUM] = 20_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.PLATINUM] = 50_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.DIAMOND] = 150_000 * (10 ** 18);
 
         weightForTier[Types.UserTiers.BRONZE] = 20;
         weightForTier[Types.UserTiers.SILVER] = 30;
