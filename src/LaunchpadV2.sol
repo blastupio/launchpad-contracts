@@ -8,6 +8,12 @@ import {BLPStaking} from "./BLPStaking.sol";
 import {Launchpad} from "./Launchpad.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
+/// @notice Upgrade of Launchpad contract directly using BLPStaking contract for fetching
+/// BLP balances instead of relying on off-chain signatures.
+///
+/// Will be activated once BLP tokens are distributed and BLPStaking is released.
+///
+/// Previous registration methods are overriden and disabled.
 contract LaunchpadV2 is Launchpad {
     address public blpStaking;
 
