@@ -1,26 +1,25 @@
 // // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {YieldStaking} from "../../src/YieldStaking.sol";
-import {Launchpad, MessageHashUtils, ECDSA} from "../../src/Launchpad.sol";
+import {Launchpad, MessageHashUtils, ECDSA, Types} from "../../src/Launchpad.sol";
 import {ILaunchpad} from "../../src/interfaces/ILaunchpad.sol";
-
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {MockERC20} from "forge-std/mocks/MockERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
 import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
 import {OracleMock} from "../../src/mocks/OracleMock.sol";
 import {WETHRebasingMock} from "../../src/mocks/WETHRebasingMock.sol";
 import {ERC20RebasingMock} from "../../src/mocks/ERC20RebasingMock.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    TransparentUpgradeableProxy,
+    ProxyAdmin
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BlastPointsMock} from "../../src/mocks/BlastPointsMock.sol";
 
 contract BaseLaunchpadTest is Test {
     YieldStaking staking;
     Launchpad launchpad;
+    ProxyAdmin proxyAdmin;
 
     ERC20Mock blp;
     ERC20Mock testToken;
@@ -77,17 +76,18 @@ contract BaseLaunchpadTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new Launchpad(address(WETH), address(USDB), address(oracle), stakingAddress)),
                     admin,
-                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin, address(points)))
+                    abi.encodeCall(Launchpad.initialize, (admin, admin, admin, address(points), admin))
                 )
             )
         );
+        proxyAdmin = ProxyAdmin(vm.computeCreateAddress(address(launchpad), 1));
         staking = YieldStaking(
             payable(
                 address(
                     new TransparentUpgradeableProxy(
                         address(new YieldStaking(address(launchpad), address(oracle), address(USDB), address(WETH))),
                         admin,
-                        abi.encodeCall(YieldStaking.initialize, (admin, address(points)))
+                        abi.encodeCall(YieldStaking.initialize, (admin, address(points), admin))
                     )
                 )
             )

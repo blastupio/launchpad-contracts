@@ -1,7 +1,7 @@
 // // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, ILaunchpad} from "../BaseLaunchpad.t.sol";
+import {BaseLaunchpadTest, Launchpad, Types} from "../BaseLaunchpad.t.sol";
 import {LaunchpadHandler} from "./Handlers/LaunchpadHandler.sol";
 
 contract LaunchpadInvariant is BaseLaunchpadTest {
@@ -45,17 +45,17 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         handler.forEachToken(this.assertClaimedAmountLeBoughtAmount);
     }
 
-    function assertClaimedAmountLeBoughtAmount(address token) public view {
-        LaunchpadHandler.PlacedTokenInvariants memory placedTokenInvariant = handler.getPlacedTokenInvariants(token);
+    function assertClaimedAmountLeBoughtAmount(uint256 id) public view {
+        LaunchpadHandler.PlacedTokenInvariants memory placedTokenInvariant = handler.getPlacedTokenInvariants(id);
 
         assertLe(placedTokenInvariant.claimedAmount, placedTokenInvariant.boughtAmount);
         assertLe(placedTokenInvariant.claimedAmount, placedTokenInvariant.initialVolume);
     }
 
     // sumUsersAllowedAllocation calculated for the public sale round
-    function assertSumUsersAllowedAllocationLeInitialVolume(address token) external view {
-        LaunchpadHandler.PlacedTokenInvariants memory placedTokenInvariant = handler.getPlacedTokenInvariants(token);
-        ILaunchpad.PlacedToken memory placedToken = launchpad.getPlacedToken(token);
+    function assertSumUsersAllowedAllocationLeInitialVolume(uint256 id) external view {
+        LaunchpadHandler.PlacedTokenInvariants memory placedTokenInvariant = handler.getPlacedTokenInvariants(id);
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(id);
 
         assertLe(
             placedTokenInvariant.sumUsersAllowedAllocation,
@@ -63,15 +63,15 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         );
     }
 
-    function assertAddressForCollectedBalanceGteSendedAmount(address token) external view {
-        LaunchpadHandler.PlacedTokenInvariants memory placedToken = handler.getPlacedTokenInvariants(token);
+    function assertAddressForCollectedBalanceGteSendedAmount(uint256 id) external view {
+        LaunchpadHandler.PlacedTokenInvariants memory placedToken = handler.getPlacedTokenInvariants(id);
 
         assertGe(USDB.balanceOf(placedToken.addressForCollected), placedToken.sendedUSDB);
         assertGe(WETH.balanceOf(placedToken.addressForCollected), placedToken.sendedWETH);
     }
 
-    function assertAddressBoughtAmountLeInitialVolume(address token) external view {
-        LaunchpadHandler.PlacedTokenInvariants memory placedToken = handler.getPlacedTokenInvariants(token);
+    function assertAddressBoughtAmountLeInitialVolume(uint256 id) external view {
+        LaunchpadHandler.PlacedTokenInvariants memory placedToken = handler.getPlacedTokenInvariants(id);
 
         assertLe(placedToken.boughtAmount, placedToken.initialVolume);
     }

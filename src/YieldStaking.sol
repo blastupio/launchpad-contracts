@@ -63,13 +63,13 @@ contract YieldStaking is OwnableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address _owner, address _points) public initializer {
+    function initialize(address _owner, address _points, address _pointsOperator) public initializer {
         USDB.configure(YieldMode.CLAIMABLE);
         WETH.configure(YieldMode.CLAIMABLE);
         // initialize pools
         stakingInfos[address(USDB)].lastIndex = WadMath.WAD;
         stakingInfos[address(WETH)].lastIndex = WadMath.WAD;
-        IBlastPoints(_points).configurePointsOperator(_owner);
+        IBlastPoints(_points).configurePointsOperator(_pointsOperator);
 
         __Ownable_init(_owner);
     }
@@ -194,7 +194,14 @@ contract YieldStaking is OwnableUpgradeable {
         emit Staked(depositToken, msg.sender, amount);
     }
 
-    function claimReward(address targetToken, address rewardToken, uint256 rewardAmount, bool getETH) external {
+    function claimReward(
+        address targetToken,
+        address rewardToken,
+        uint256 rewardAmount,
+        bool getETH,
+        bytes memory signature,
+        uint256 id
+    ) external {
         StakingInfo storage info = stakingInfos[targetToken];
         StakingUser storage user = info.users[msg.sender];
 
@@ -224,7 +231,7 @@ contract YieldStaking is OwnableUpgradeable {
             if (IERC20Rebasing(targetToken).allowance(address(this), address(launchpad)) < rewardAmount) {
                 IERC20Rebasing(targetToken).forceApprove(address(launchpad), type(uint256).max);
             }
-            launchpad.buyTokens(rewardToken, targetToken, rewardAmount, msg.sender);
+            launchpad.buyTokens(id, targetToken, rewardAmount, msg.sender, signature);
         }
 
         emit RewardClaimed(targetToken, msg.sender, rewardToken, rewardAmount);
@@ -263,7 +270,6 @@ contract YieldStaking is OwnableUpgradeable {
 
     /* ========== EVENTS ========== */
 
-    event StakingCreated(address stakingToken);
     event Staked(address stakingToken, address indexed user, uint256 amount);
     event Withdrawn(address stakingToken, address indexed user, uint256 amount);
     event RewardClaimed(address stakingToken, address indexed user, address rewardToken, uint256 amountInStakingToken);

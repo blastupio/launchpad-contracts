@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.25;
 
-import {ERC20Mock} from "../../BaseLaunchpad.t.sol";
-
 struct AddressSet {
     address[] addrs;
     mapping(address => bool) saved;
@@ -24,7 +22,7 @@ library LibAddressSet {
         return s.addrs.length;
     }
 
-    function randActor(AddressSet storage s, uint256 seed) internal returns (address) {
+    function rand(AddressSet storage s, uint256 seed) internal returns (address) {
         if (s.addrs.length > 0) {
             return s.addrs[seed % s.addrs.length];
         } else {
@@ -32,27 +30,14 @@ library LibAddressSet {
             add(s, address(1532));
             add(s, address(15342));
             add(s, address(153421));
+            add(s, address(15342121));
             return address(153);
-        }
-    }
-
-    function randToken(AddressSet storage s, uint256 seed) internal view returns (address, uint256) {
-        if (s.addrs.length > 0) {
-            return (s.addrs[seed % s.addrs.length], seed % s.addrs.length);
-        } else {
-            return (address(0), 0);
         }
     }
 
     function forEach(AddressSet storage s, function(address) external func) internal {
         for (uint256 i; i < s.addrs.length; ++i) {
             func(s.addrs[i]);
-        }
-    }
-
-    function forEachPlusArgument(AddressSet storage s, uint256 id, function(address, uint) external func) internal {
-        for (uint256 i; i < s.addrs.length; ++i) {
-            func(s.addrs[i], id);
         }
     }
 

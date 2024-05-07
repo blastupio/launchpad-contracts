@@ -1,20 +1,28 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
-import {BaseLaunchpadTest, Launchpad, ILaunchpad, MessageHashUtils, ECDSA} from "../../BaseLaunchpad.t.sol";
+import {BaseLaunchpadTest, Launchpad, Types, MessageHashUtils, ECDSA} from "../../BaseLaunchpad.t.sol";
 
 contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
-    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory) {
+    function _getSignature(address _user, uint256 _amountOfTokens) internal returns (bytes memory signature) {
         vm.startPrank(admin);
         bytes32 digest = keccak256(abi.encodePacked(_user, _amountOfTokens, address(launchpad), block.chainid))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        signature = abi.encodePacked(r, s, v);
         vm.stopPrank();
-        return signature;
+    }
+
+    function _getApproveSignature(address _user, uint256 _id) internal returns (bytes memory signature) {
+        vm.startPrank(admin);
+        bytes32 digest =
+            keccak256(abi.encodePacked(_user, _id, address(launchpad), block.chainid)).toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
     }
 
     modifier placeTokens() {
@@ -27,7 +35,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
 
-        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
+        Types.PlacedToken memory input = Types.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -43,16 +51,59 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
             tgePercent: tgePercent,
-            initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false,
+            token: address(testToken)
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, 100 * 10 ** 19);
         testToken.approve(address(launchpad), type(uint256).max);
-        launchpad.placeTokens(input, address(testToken));
+        launchpad.placeTokens(input);
+        vm.stopPrank();
+        vm.warp(input.registrationStart);
+        _;
+    }
+
+    modifier placeTokensWithApprove() {
+        uint256 initialVolume = 100 * 10 ** 18;
+        uint256 initialVolumeForHighTiers = initialVolume * 60 / 100;
+        uint256 initialVolumeForLowTiers = initialVolume * 20 / 100;
+        uint256 volumeForYieldStakers = initialVolume * 20 / 100;
+        address addressForCollected = address(2);
+        uint256 price = 10 ** 18;
+        uint256 vestingDuration = 60;
+        uint8 tgePercent = 15;
+
+        Types.PlacedToken memory input = Types.PlacedToken({
+            price: price,
+            initialVolumeForHighTiers: initialVolumeForHighTiers,
+            initialVolumeForLowTiers: initialVolumeForLowTiers,
+            volumeForYieldStakers: volumeForYieldStakers,
+            addressForCollected: addressForCollected,
+            volume: initialVolume,
+            registrationStart: block.timestamp + 1,
+            registrationEnd: block.timestamp + 11,
+            publicSaleStart: block.timestamp + 21,
+            fcfsSaleStart: type(uint256).max - 3,
+            saleEnd: type(uint256).max - 2,
+            tgeStart: type(uint256).max - 1,
+            vestingStart: type(uint256).max,
+            vestingDuration: vestingDuration,
+            tgePercent: tgePercent,
+            lowTiersWeightsSum: 0,
+            highTiersWeightsSum: 0,
+            tokenDecimals: 18,
+            approved: true,
+            token: address(testToken)
+        });
+
+        vm.startPrank(admin);
+        testToken.mint(admin, 100 * 10 ** 19);
+        testToken.approve(address(launchpad), type(uint256).max);
+        launchpad.placeTokens(input);
         vm.stopPrank();
         vm.warp(input.registrationStart);
         _;
@@ -78,7 +129,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 vestingDuration = 60;
         initialVolume *= 100;
 
-        ILaunchpad.PlacedToken memory input = ILaunchpad.PlacedToken({
+        Types.PlacedToken memory input = Types.PlacedToken({
             price: price,
             initialVolumeForHighTiers: initialVolumeForHighTiers,
             initialVolumeForLowTiers: initialVolumeForLowTiers,
@@ -94,52 +145,53 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
             tgePercent: tgePercent,
-            initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
-            tokenDecimals: 18
+            tokenDecimals: 18,
+            approved: false,
+            token: address(testToken)
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, initialVolume + 1);
         testToken.approve(address(launchpad), type(uint256).max);
-        launchpad.placeTokens(input, address(testToken));
+        launchpad.placeTokens(input);
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
         _;
     }
 
     function test_timestampSetters() public placeTokens {
-        address token = address(testToken);
+        uint256 id = 0;
 
         vm.startPrank(user);
         vm.expectRevert();
-        launchpad.setRegistrationStart(token, block.timestamp + 10);
+        launchpad.setRegistrationStart(id, block.timestamp + 10);
 
         vm.expectRevert();
-        launchpad.setRegistrationEnd(token, block.timestamp + 100);
+        launchpad.setRegistrationEnd(id, block.timestamp + 100);
 
         vm.expectRevert();
-        launchpad.setPublicSaleStart(token, block.timestamp + 100);
+        launchpad.setPublicSaleStart(id, block.timestamp + 100);
 
         vm.expectRevert();
-        launchpad.setFCFSSaleStart(token, block.timestamp + 100);
+        launchpad.setFCFSSaleStart(id, block.timestamp + 100);
 
         vm.expectRevert();
-        launchpad.setSaleEnd(token, block.timestamp + 100);
+        launchpad.setSaleEnd(id, block.timestamp + 100);
 
         vm.expectRevert();
-        launchpad.setVestingStart(token, block.timestamp + 100);
+        launchpad.setVestingStart(id, block.timestamp + 100);
         vm.stopPrank();
 
         vm.startPrank(admin);
 
-        launchpad.setRegistrationStart(token, block.timestamp + 10);
-        launchpad.setRegistrationEnd(token, block.timestamp + 101);
-        launchpad.setPublicSaleStart(token, block.timestamp + 102);
-        launchpad.setFCFSSaleStart(token, block.timestamp + 103);
-        launchpad.setSaleEnd(token, block.timestamp + 104);
-        launchpad.setVestingStart(token, block.timestamp + 105);
+        launchpad.setRegistrationStart(id, block.timestamp + 10);
+        launchpad.setRegistrationEnd(id, block.timestamp + 101);
+        launchpad.setPublicSaleStart(id, block.timestamp + 102);
+        launchpad.setFCFSSaleStart(id, block.timestamp + 103);
+        launchpad.setSaleEnd(id, block.timestamp + 104);
+        launchpad.setVestingStart(id, block.timestamp + 105);
 
         vm.stopPrank();
     }
@@ -171,7 +223,8 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
 
     function test_signerSetter() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+        uint256 id = 0;
 
         vm.startPrank(user);
         bytes32 digest = keccak256(abi.encodePacked(user, amountOfTokens, address(launchpad), block.chainid))
@@ -181,7 +234,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.expectRevert("BlastUP: Invalid signature");
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
         vm.stopPrank();
 
         vm.startPrank(admin);
@@ -189,12 +242,13 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.prank(user);
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
     }
 
     function test_RevertRegistration_InvalidSignature() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+        uint256 id = 0;
 
         vm.startPrank(admin);
 
@@ -208,14 +262,15 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         vm.startPrank(user);
 
         vm.expectRevert("BlastUP: Invalid signature");
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
 
         vm.stopPrank();
     }
 
     function test_RevertRegistration_InvalidStatus() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+        uint256 id = 0;
 
         vm.warp(block.timestamp + 700);
 
@@ -224,56 +279,80 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
 
         vm.startPrank(user);
         vm.expectRevert("BlastUP: invalid status");
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
         vm.stopPrank();
     }
 
     function test_RevertRegistration_InvalidTier() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.GOLD;
+        Types.UserTiers tier = Types.UserTiers.GOLD;
+        uint256 id = 0;
 
         bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.startPrank(user);
         vm.expectRevert("BlastUP: you do not have enough BLP tokens for that tier");
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
         vm.stopPrank();
     }
 
     function test_Register() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+        uint256 id = 0;
 
         bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.startPrank(user);
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        launchpad.register(id, tier, amountOfTokens, signature);
+        Types.User memory userInfo = launchpad.userInfo(id, user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));
         assertEq(userInfo.registered, true);
-        assertEq(launchpad.userAllowedAllocation(address(testToken), user), 0);
+        assertEq(launchpad.userAllowedAllocation(id, user), 0);
+        vm.stopPrank();
+    }
+
+    function test_RegisterWithApprove() public placeTokensWithApprove {
+        uint256 amountOfTokens = 2000; // BLP
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+        uint256 id = 0;
+
+        bytes memory signature = _getSignature(user, amountOfTokens);
+        bytes memory approveSignature = _getApproveSignature(user, id);
+
+        vm.startPrank(user);
+        vm.expectRevert("BlastUP: you need to use register with approve function");
+        launchpad.register(id, tier, amountOfTokens, signature);
+        launchpad.registerWithApprove(id, tier, amountOfTokens, signature, approveSignature);
+        Types.User memory userInfo = launchpad.userInfo(id, user);
+
+        assertEq(uint8(userInfo.tier), uint8(tier));
+        assertEq(userInfo.registered, true);
+        assertEq(launchpad.userAllowedAllocation(id, user), 0);
         vm.stopPrank();
     }
 
     function test_RevertRegistration_AlreadyRegisteredUser() public placeTokens {
         uint256 amountOfTokens = 2000; // BLP
-        ILaunchpad.UserTiers tier = ILaunchpad.UserTiers.BRONZE;
+        Types.UserTiers tier = Types.UserTiers.BRONZE;
+        uint256 id = 0;
 
         bytes memory signature = _getSignature(user, amountOfTokens);
 
         vm.startPrank(user);
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
         vm.expectRevert("BlastUP: you are already registered");
-        launchpad.register(address(testToken), tier, amountOfTokens, signature);
+        launchpad.register(id, tier, amountOfTokens, signature);
         vm.stopPrank();
     }
 
-    function _checkRegisterUser(address _user, uint256 _amountOfTokens, ILaunchpad.UserTiers tier) internal {
+    function _checkRegisterUser(address _user, uint256 _amountOfTokens, Types.UserTiers tier) internal {
         bytes memory signature = _getSignature(_user, _amountOfTokens);
+        uint256 id = 0;
         vm.prank(_user);
-        launchpad.register(address(testToken), tier, _amountOfTokens, signature);
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), _user);
+        launchpad.register(id, tier, _amountOfTokens, signature);
+        Types.User memory userInfo = launchpad.userInfo(id, _user);
         assertEq(uint8(userInfo.tier), uint8(tier));
         assertTrue(userInfo.registered);
     }
@@ -292,12 +371,13 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         uint256 amountOfTokens5,
         uint256 amountOfTokens6
     ) public placeTokensFuzz(initialVolume, addressForCollected, timeOfEndRegistration, price, tgePercent) {
-        ILaunchpad.UserTiers tier1 = ILaunchpad.UserTiers.BRONZE;
-        ILaunchpad.UserTiers tier2 = ILaunchpad.UserTiers.SILVER;
-        ILaunchpad.UserTiers tier3 = ILaunchpad.UserTiers.GOLD;
-        ILaunchpad.UserTiers tier4 = ILaunchpad.UserTiers.TITANIUM;
-        ILaunchpad.UserTiers tier5 = ILaunchpad.UserTiers.PLATINUM;
-        ILaunchpad.UserTiers tier6 = ILaunchpad.UserTiers.DIAMOND;
+        uint256 id = 0;
+        Types.UserTiers tier1 = Types.UserTiers.BRONZE;
+        Types.UserTiers tier2 = Types.UserTiers.SILVER;
+        Types.UserTiers tier3 = Types.UserTiers.GOLD;
+        Types.UserTiers tier4 = Types.UserTiers.TITANIUM;
+        Types.UserTiers tier5 = Types.UserTiers.PLATINUM;
+        Types.UserTiers tier6 = Types.UserTiers.DIAMOND;
 
         amountOfTokens = bound(amountOfTokens, 0, launchpad.minAmountForTier(tier1) - 1);
         amountOfTokens1 =
@@ -315,8 +395,8 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
         bytes memory signature = _getSignature(user, amountOfTokens);
         vm.startPrank(user);
         vm.expectRevert();
-        launchpad.register(address(testToken), tier1, amountOfTokens, signature);
-        ILaunchpad.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        launchpad.register(id, tier1, amountOfTokens, signature);
+        Types.User memory userInfo = launchpad.userInfo(id, user);
         assertTrue(!userInfo.registered);
         vm.stopPrank();
 

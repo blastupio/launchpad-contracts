@@ -9,7 +9,7 @@ contract StakingInvariant is BaseStakingTest {
 
     function setUp() public override {
         super.setUp();
-        handler = new StakingHandler(staking, address(USDB), address(WETH));
+        handler = new StakingHandler(staking, address(USDB), address(WETH), launchpad, adminPrivateKey);
         targetContract(address(handler));
         excludeSender(admin);
         address stakingProxyAdmin = vm.computeCreateAddress(address(staking), 1);

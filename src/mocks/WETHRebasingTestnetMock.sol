@@ -10,7 +10,7 @@ contract WETHRebasingTestnetMock is ERC20RebasingTestnetMock {
     {}
 
     function deposit() external payable {
-        _mint(msg.sender, msg.value);
+        mint(msg.sender, msg.value);
     }
 
     function withdraw(uint256 wad) external {
