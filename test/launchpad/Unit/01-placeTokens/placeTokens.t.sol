@@ -13,6 +13,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
         uint256 price = 10 ** 18;
         uint256 vestingDuration = 60;
         uint8 tgePercent = 15;
+        uint256 currentTokenId = 0;
 
         Types.PlacedToken memory input = Types.PlacedToken({
             price: price,
@@ -30,28 +31,24 @@ contract PlaceTokensTest is BaseLaunchpadTest {
             vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
             tgePercent: tgePercent,
-            initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
-            approved: false
+            approved: false,
+            token: address(testToken)
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, 100 * 10 ** 19);
         testToken.approve(address(launchpad), type(uint256).max);
-        launchpad.placeTokens(input, address(testToken));
+        launchpad.placeTokens(input);
 
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(testToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
 
         assertEq(testToken.balanceOf(address(launchpad)), initialVolume);
         assertEq(placedToken.price, price);
         assertEq(placedToken.volumeForYieldStakers, volumeForYieldStakers);
         assertEq(placedToken.tokenDecimals, 18);
-
-        vm.expectRevert("BlastUP: This token was already placed");
-
-        launchpad.placeTokens(input, address(testToken));
 
         input.initialVolumeForHighTiers = 0;
         input.initialVolumeForLowTiers = 0;
@@ -59,7 +56,7 @@ contract PlaceTokensTest is BaseLaunchpadTest {
 
         vm.expectRevert("BlastUP: initial Volume must be > 0");
 
-        launchpad.placeTokens(input, address(testToken2));
+        launchpad.placeTokens(input);
 
         vm.stopPrank();
     }

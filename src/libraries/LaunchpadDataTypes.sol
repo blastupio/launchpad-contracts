@@ -14,6 +14,7 @@ library LaunchpadDataTypes {
     struct User {
         uint256 claimedAmount;
         uint256 boughtAmount;
+        uint256 boughtPublicSale;
         UserTiers tier;
         bool registered;
     }
@@ -47,7 +48,7 @@ library LaunchpadDataTypes {
         uint256 vestingDuration;
         uint8 tokenDecimals;
         uint8 tgePercent;
-        bool initialized;
         bool approved;
+        address token;
     }
 }

@@ -28,9 +28,10 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         address addressForCollected;
         uint256 boughtAmount;
         uint256 sumUsersAllowedAllocation;
+        address token;
     }
 
-    mapping(address => PlacedTokenInvariants) ghost_placedToken;
+    mapping(uint256 => PlacedTokenInvariants) ghost_placedToken;
 
     mapping(bytes32 => uint256) public calls;
 
@@ -38,13 +39,15 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     AddressSet internal _tokens;
     address internal currentActor;
     address internal currentToken;
+    uint256 internal currentTokenId;
 
-    function getPlacedTokenInvariants(address token) external view returns (PlacedTokenInvariants memory) {
-        return ghost_placedToken[token];
+    function getPlacedTokenInvariants(uint256 id) external view returns (PlacedTokenInvariants memory) {
+        return ghost_placedToken[id];
     }
 
     modifier createToken() {
         currentToken = address(new ERC20Mock("Token", "TKN", 18));
+        currentTokenId = _tokens.count();
         _tokens.add(currentToken);
         _;
     }
@@ -55,7 +58,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     }
 
     modifier useToken(uint256 tokenIndexSeed) {
-        currentToken = _tokens.randToken(tokenIndexSeed);
+        (currentToken, currentTokenId) = _tokens.randToken(tokenIndexSeed);
         vm.assume(currentToken != address(0));
         _;
     }
@@ -81,34 +84,34 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         vm.stopPrank();
     }
 
-    function _getApproveSignature(address _user, address _token) internal returns (bytes memory signature) {
+    function _getApproveSignature(address _user, uint256 _id) internal returns (bytes memory signature) {
         vm.startPrank(launchpad.owner());
         bytes32 digest =
-            keccak256(abi.encodePacked(_user, _token, address(launchpad), block.chainid)).toEthSignedMessageHash();
+            keccak256(abi.encodePacked(_user, _id, address(launchpad), block.chainid)).toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
         signature = abi.encodePacked(r, s, v);
         vm.stopPrank();
     }
 
-    function registerUser(address account, address token) external {
+    function registerUser(address account, uint256 id) external {
         uint256 _address = uint256(uint160(account) + _tokens.count());
         Types.UserTiers tier = Types.UserTiers(_address % 6);
         uint256 amountOfTokens = launchpad.minAmountForTier(tier) + _address % 10000;
         bytes memory signature = _getSignature(account, amountOfTokens);
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(id);
 
         vm.startPrank(account);
         if (placedToken.approved) {
-            bytes memory approveSignature = _getApproveSignature(account, token);
-            launchpad.registerWithApprove(token, tier, amountOfTokens, signature, approveSignature);
+            bytes memory approveSignature = _getApproveSignature(account, id);
+            launchpad.registerWithApprove(id, tier, amountOfTokens, signature, approveSignature);
         } else {
-            launchpad.register(token, tier, amountOfTokens, signature);
+            launchpad.register(id, tier, amountOfTokens, signature);
         }
         vm.stopPrank();
     }
 
-    function sumAllowedAllocations(address account, address token) external {
-        ghost_placedToken[token].sumUsersAllowedAllocation += launchpad.userAllowedAllocation(token, account);
+    function sumAllowedAllocations(address account, uint256 id) external {
+        ghost_placedToken[id].sumUsersAllowedAllocation += launchpad.userAllowedAllocation(id, account);
     }
 
     function placeTokens(
@@ -150,32 +153,32 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
             tgePercent: uint8(tgePercent),
-            initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
-            approved: false
+            approved: false,
+            token: currentToken
         });
 
         vm.startPrank(launchpad.owner());
         ERC20Mock(currentToken).mint(launchpad.owner(), initialVolume);
         ERC20Mock(currentToken).approve(address(launchpad), initialVolume + 1);
-        launchpad.placeTokens(input, currentToken);
+        launchpad.placeTokens(input);
         vm.warp(block.timestamp + 1);
         vm.stopPrank();
 
-        ghost_placedToken[currentToken].addressForCollected = addressForCollected;
-        ghost_placedToken[currentToken].initialVolume = initialVolume;
+        ghost_placedToken[currentTokenId].addressForCollected = addressForCollected;
+        ghost_placedToken[currentTokenId].initialVolume = initialVolume;
 
         _actors.randActor(1);
 
-        forEachActor(currentToken, this.registerUser);
+        forEachActor(currentTokenId, this.registerUser);
 
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
 
         vm.warp(placedToken.publicSaleStart);
 
-        forEachActor(currentToken, this.sumAllowedAllocations);
+        forEachActor(currentTokenId, this.sumAllowedAllocations);
     }
 
     function buyTokens(uint256 actorSeed, uint256 tokenSeed, uint256 tokensAmount, bool WETHOrUSDB)
@@ -184,13 +187,13 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         useToken(tokenSeed)
         countCall("buyTokens")
     {
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
 
         vm.assume(status == Types.SaleStatus.PUBLIC_SALE || status == Types.SaleStatus.FCFS_SALE);
 
         address paymentContract = WETHOrUSDB ? usdb : weth;
-        uint256 allowedAllocation = launchpad.userAllowedAllocation(currentToken, currentActor);
+        uint256 allowedAllocation = launchpad.userAllowedAllocation(currentTokenId, currentActor);
         vm.assume(allowedAllocation > 0);
 
         uint256 maxTokensAmount =
@@ -204,74 +207,74 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
         if (paymentContract == usdb) {
             volume = tokensAmount * placedToken.price / 1e18;
-            ghost_placedToken[currentToken].sendedUSDB += volume;
+            ghost_placedToken[currentTokenId].sendedUSDB += volume;
         } else {
             volume = tokensAmount * placedToken.price / 1e20;
-            ghost_placedToken[currentToken].sendedWETH += volume;
+            ghost_placedToken[currentTokenId].sendedWETH += volume;
         }
 
-        Types.User memory userInfoBefore = launchpad.userInfo(currentToken, currentActor);
+        Types.User memory userInfoBefore = launchpad.userInfo(currentTokenId, currentActor);
 
         vm.startPrank(currentActor);
         ERC20Mock(paymentContract).mint(currentActor, volume);
         ERC20Mock(paymentContract).approve(address(launchpad), volume);
-        launchpad.buyTokens(currentToken, paymentContract, volume, currentActor, bytes(""));
+        launchpad.buyTokens(currentTokenId, paymentContract, volume, currentActor, bytes(""));
 
-        Types.User memory userInfoAfter = launchpad.userInfo(currentToken, currentActor);
+        Types.User memory userInfoAfter = launchpad.userInfo(currentTokenId, currentActor);
         vm.stopPrank();
 
-        ghost_placedToken[currentToken].boughtAmount += userInfoAfter.boughtAmount - userInfoBefore.boughtAmount;
+        ghost_placedToken[currentTokenId].boughtAmount += userInfoAfter.boughtAmount - userInfoBefore.boughtAmount;
     }
 
     function setFCFSSaleStart(uint256 tokenSeed, uint256 _fcfsSaleStart) public useToken(tokenSeed) {
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.PUBLIC_SALE);
         _fcfsSaleStart = bound(_fcfsSaleStart, placedToken.publicSaleStart + 10, 1e50);
         vm.prank(launchpad.owner());
-        launchpad.setFCFSSaleStart(currentToken, _fcfsSaleStart);
+        launchpad.setFCFSSaleStart(currentTokenId, _fcfsSaleStart);
         vm.warp(_fcfsSaleStart);
     }
 
     function setSaleEnd(uint256 tokenSeed, uint256 _saleEnd) public useToken(tokenSeed) {
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.FCFS_SALE);
         _saleEnd = bound(_saleEnd, placedToken.fcfsSaleStart + 10, 1e50);
         vm.prank(launchpad.owner());
-        launchpad.setSaleEnd(currentToken, _saleEnd);
+        launchpad.setSaleEnd(currentTokenId, _saleEnd);
         vm.warp(_saleEnd);
     }
 
     function setTgeStart(uint256 tokenSeed, uint256 _tgeStart) public useToken(tokenSeed) {
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
         _tgeStart = bound(_tgeStart, placedToken.saleEnd + 10, 1e50);
         vm.prank(launchpad.owner());
-        launchpad.setTgeStart(currentToken, _tgeStart);
+        launchpad.setTgeStart(currentTokenId, _tgeStart);
         vm.warp(_tgeStart);
     }
 
     function setVestingStart(uint256 tokenSeed, uint256 _vestingStart) public useToken(tokenSeed) {
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
         vm.assume(placedToken.tgeStart != type(uint256).max - 1);
         _vestingStart = bound(_vestingStart, placedToken.tgeStart + 10, 1e50);
         vm.prank(launchpad.owner());
-        launchpad.setVestingStart(currentToken, _vestingStart);
+        launchpad.setVestingStart(currentTokenId, _vestingStart);
         vm.warp(_vestingStart);
     }
 
     function claimRemainders(uint256 tokenSeed) public useToken(tokenSeed) {
-        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(address(currentToken));
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
 
         vm.assume(status == Types.SaleStatus.POST_SALE);
         vm.assume(placedToken.volume > 0);
         vm.prank(launchpad.owner());
-        launchpad.claimRemainders(currentToken);
+        launchpad.claimRemainders(currentTokenId);
     }
 
     function claimTokens(uint256 actorSeed, uint256 tokenSeed)
@@ -280,27 +283,29 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         useToken(tokenSeed)
         countCall("claimTokens")
     {
-        Types.SaleStatus status = launchpad.getStatus(address(currentToken));
+        Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
 
-        uint256 claimableAmount = launchpad.getClaimableAmount(currentToken, currentActor);
+        uint256 claimableAmount = launchpad.getClaimableAmount(currentTokenId, currentActor);
         vm.assume(claimableAmount > 0);
 
-        ghost_placedToken[currentToken].claimedAmount += claimableAmount;
+        ghost_placedToken[currentTokenId].claimedAmount += claimableAmount;
 
         vm.startPrank(currentActor);
-        launchpad.claimTokens(currentToken);
+        launchpad.claimTokens(currentTokenId);
         vm.stopPrank();
 
         vm.warp(tokenSeed % 15);
     }
 
-    function forEachActor(address _token, function(address, address) external func) public {
-        return _actors.forEachPlusArgument(_token, func);
+    function forEachActor(uint256 _id, function(address, uint256) external func) public {
+        return _actors.forEachPlusArgument(_id, func);
     }
 
-    function forEachToken(function(address) external func) public {
-        return _tokens.forEach(func);
+    function forEachToken(function(uint256) external func) public {
+        for (uint256 i; i < _tokens.count(); ++i) {
+            func(i);
+        }
     }
 
     function reduceTokens(uint256 acc, function(uint256,address) external returns (uint256) func)

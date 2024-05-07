@@ -24,23 +24,23 @@ contract LaunchpadV2 is Launchpad {
 
     /* ========== FUNCTIONS ========== */
 
-    function registerV2(address token, Types.UserTiers tier) external {
-        require(!placedTokens[token].approved, "BlastUP: you need to use register with approve function");
+    function registerV2(uint256 id, Types.UserTiers tier) external {
+        require(!placedTokens[id].approved, "BlastUP: you need to use register with approve function");
         (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
-        _register(amountOfTokens, token, tier);
+        _register(amountOfTokens, id, tier);
     }
 
-    function registerV2WithApprove(address token, Types.UserTiers tier, bytes memory signature) external {
+    function registerV2WithApprove(uint256 id, Types.UserTiers tier, bytes memory signature) external {
         (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
-        _validateApproveSignature(msg.sender, token, signature);
-        _register(amountOfTokens, token, tier);
+        _validateApproveSignature(msg.sender, id, signature);
+        _register(amountOfTokens, id, tier);
     }
 
-    function register(address, Types.UserTiers, uint256, bytes memory) external pure override {
+    function register(uint256, Types.UserTiers, uint256, bytes memory) external pure override {
         revert("Not implemented");
     }
 
-    function registerWithApprove(address, Types.UserTiers, uint256, bytes memory, bytes memory)
+    function registerWithApprove(uint256, Types.UserTiers, uint256, bytes memory, bytes memory)
         external
         pure
         override

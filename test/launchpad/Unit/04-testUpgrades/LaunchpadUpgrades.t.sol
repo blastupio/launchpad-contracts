@@ -49,17 +49,17 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
             vestingStart: type(uint256).max,
             vestingDuration: vestingDuration,
             tgePercent: tgePercent,
-            initialized: true,
             lowTiersWeightsSum: 0,
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
-            approved: false
+            approved: false,
+            token: address(testToken)
         });
 
         vm.startPrank(admin);
         testToken.mint(admin, 100 * 10 ** 19);
         testToken.approve(address(launchpad), type(uint256).max);
-        launchpad.placeTokens(input, address(testToken));
+        launchpad.placeTokens(input);
         vm.stopPrank();
         vm.warp(input.registrationStart);
         _;
@@ -71,6 +71,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         Types.UserTiers tierDiamond = Types.UserTiers.DIAMOND;
         uint256 lockTime = 100;
         uint32 percent = 10 * 1e2;
+        uint256 id = 0;
 
         uint256 preClaculatedReward = (amount * percent / 1e4) * lockTime / 365 days;
 
@@ -87,19 +88,19 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
         vm.startPrank(user);
         vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).register(address(testToken), tier, amount, bytes(""));
+        ILaunchpadV2(address(launchpad)).register(id, tier, amount, bytes(""));
         vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).registerWithApprove(address(testToken), tier, amount, bytes(""), bytes(""));
-        ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tier);
-        Types.User memory userInfo = launchpad.userInfo(address(testToken), user);
+        ILaunchpadV2(address(launchpad)).registerWithApprove(id, tier, amount, bytes(""), bytes(""));
+        ILaunchpadV2(address(launchpad)).registerV2(id, tier);
+        Types.User memory userInfo = launchpad.userInfo(id, user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));
         assertEq(userInfo.registered, true);
-        assertEq(launchpad.userAllowedAllocation(address(testToken), user), 0);
+        assertEq(launchpad.userAllowedAllocation(id, user), 0);
         vm.stopPrank();
 
         vm.prank(user2);
         vm.expectRevert("BlastUP: you do not have enough BLP tokens for that tier");
-        ILaunchpadV2(address(launchpad)).registerV2(address(testToken), tierDiamond);
+        ILaunchpadV2(address(launchpad)).registerV2(id, tierDiamond);
     }
 }
