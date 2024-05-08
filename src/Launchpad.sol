@@ -17,8 +17,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    error InvalidSaleStatus(uint256 id);
-
     /* ========== IMMUTABLE VARIABLES ========== */
     address public immutable yieldStaking;
     IERC20 public immutable USDB;
