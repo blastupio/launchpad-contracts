@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.25;
 
-import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {ILaunchpadV2, LaunchpadDataTypes as Types} from "./interfaces/ILaunchpadV2.sol";
 import {BLPStaking} from "./BLPStaking.sol";
 import {Launchpad} from "./Launchpad.sol";
