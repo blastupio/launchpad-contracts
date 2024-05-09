@@ -17,8 +17,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    error InvalidSaleStatus(uint256 id);
-
     /* ========== IMMUTABLE VARIABLES ========== */
     address public immutable yieldStaking;
     IERC20 public immutable USDB;
@@ -35,9 +33,14 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     Types.PlacedToken[] public placedTokens;
 
+    /// @notice Minimal BLP balance required to claim a specific tier.
     mapping(Types.UserTiers => uint256) public minAmountForTier;
+
+    /// @notice Weight of the specific tier in its group pool.
     mapping(Types.UserTiers => uint256) public weightForTier;
-    mapping(uint256 => mapping(address => Types.User)) public users;
+
+    /// @notice State of user in a specific token sale.
+    mapping(uint256 id => mapping(address user => Types.User)) public users;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -60,19 +63,19 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         operator = _operator;
         IBlastPoints(_points).configurePointsOperator(_pointsOperator);
 
-        minAmountForTier[Types.UserTiers.BRONZE] = 2_000;
-        minAmountForTier[Types.UserTiers.SILVER] = 5_000;
-        minAmountForTier[Types.UserTiers.GOLD] = 10_000;
-        minAmountForTier[Types.UserTiers.TITANIUM] = 20_000;
-        minAmountForTier[Types.UserTiers.PLATINUM] = 50_000;
-        minAmountForTier[Types.UserTiers.DIAMOND] = 150_000;
+        minAmountForTier[Types.UserTiers.BRONZE] = 2_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.SILVER] = 5_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.GOLD] = 10_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.TITANIUM] = 20_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.PLATINUM] = 50_000 * (10 ** 18);
+        minAmountForTier[Types.UserTiers.DIAMOND] = 100_000 * (10 ** 18);
 
-        weightForTier[Types.UserTiers.BRONZE] = 20;
-        weightForTier[Types.UserTiers.SILVER] = 30;
-        weightForTier[Types.UserTiers.GOLD] = 50;
+        weightForTier[Types.UserTiers.BRONZE] = 10;
+        weightForTier[Types.UserTiers.SILVER] = 25;
+        weightForTier[Types.UserTiers.GOLD] = 65;
         weightForTier[Types.UserTiers.TITANIUM] = 10;
-        weightForTier[Types.UserTiers.PLATINUM] = 30;
-        weightForTier[Types.UserTiers.DIAMOND] = 60;
+        weightForTier[Types.UserTiers.PLATINUM] = 25;
+        weightForTier[Types.UserTiers.DIAMOND] = 65;
 
         __Ownable_init(_owner);
     }
@@ -97,6 +100,9 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return Types.SaleStatus.POST_SALE;
     }
 
+    /// @notice Calculates allocation allowed for purchase by a user
+    /// During public sale, returns value dependent on user's tier, tier group and weight in the pool.
+    /// During FCFS sale, returns 0 unless user has a high tier which allows any amount to be purchased.
     function userAllowedAllocation(uint256 id, address user) public view returns (uint256) {
         if (!users[id][user].registered) return 0;
         if (getStatus(id) == Types.SaleStatus.PUBLIC_SALE) {
@@ -117,6 +123,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         }
     }
 
+    /// @notice Returns amount of tokens bought by user which can be claimed at the moment.
+    /// Accounts for amount unlocked on TGE and potentially vested by the current point of time.
     function getClaimableAmount(uint256 id, address user) public view returns (uint256) {
         uint256 tgeAmount = users[id][user].boughtAmount * placedTokens[id].tgePercent / 100;
         uint256 vestedAmount = users[id][user].boughtAmount - tgeAmount;
@@ -139,12 +147,23 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function _convertETHToUSDB(uint256 volume) private view returns (uint256) {
-        // price * volume * real_usdb_decimals / (eth_decimals * oracle_decimals)
-        (, int256 ans,,,) = oracle.latestRoundData();
-        return uint256(ans) * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
+    /// @notice Fetches ETH price from oracle, performing additional safety checks to ensure the oracle is healthy.
+    function _getETHPrice() private view returns (uint256) {
+        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
+        require(answeredInRound >= roundID, "Stale price");
+        require(timestamp != 0, "Round not complete");
+        require(price > 0, "Chainlink price reporting 0");
+
+        return uint256(price);
     }
 
+    /// @notice Converts given amount of ETH to USDB, using oracle price
+    function _convertETHToUSDB(uint256 volume) private view returns (uint256) {
+        return _getETHPrice() * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
+    }
+
+    /// @notice Converts given volume to the amount of tokens which can be purchased from the sale,
+    /// depending on the sale price, token decimals and converting ETH to USDB if required.
     function _calculateTokensAmount(uint256 volume, address paymentContract, uint8 decimals, uint256 price)
         private
         view
@@ -161,6 +180,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return tokensAmount;
     }
 
+    /// @notice Registers a user to the sale with the given tier, validating that amountOfTokens
+    /// is enough to claim that tier.
     function _register(uint256 amountOfTokens, uint256 id, Types.UserTiers tier) internal {
         Types.PlacedToken storage placedToken = placedTokens[id];
         Types.User storage user = users[id][msg.sender];
@@ -181,12 +202,14 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit UserRegistered(msg.sender, placedToken.token, id, tier);
     }
 
+    /// @notice Validates signature proving user BLP balance.
     function _validateUserBalanceSignature(uint256 amountOfTokens, bytes memory signature) internal view {
         address signer_ = keccak256(abi.encodePacked(msg.sender, amountOfTokens, address(this), block.chainid))
             .toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: Invalid signature");
     }
 
+    /// @notice Validates signature approving user for registration/purchase on the given token sale.
     function _validateApproveSignature(address user, uint256 id, bytes memory signature) internal view {
         address signer_ = keccak256(abi.encodePacked(user, id, address(this), block.chainid)).toEthSignedMessageHash()
             .recover(signature);
@@ -256,6 +279,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         placedTokens[id].vestingStart = _vestingStart;
     }
 
+    /// @notice Function for adding a new token sale.
     function placeTokens(Types.PlacedToken memory _placedToken) external onlyOwner {
         uint256 id = placedTokens.length;
         uint256 sumVolume = _placedToken.initialVolumeForHighTiers + _placedToken.initialVolumeForLowTiers
@@ -282,6 +306,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         emit TokenPlaced(_placedToken.token, id);
     }
 
+    /// @notice Register to the sale, requires a signature proving that user has the provided amountOfTokens balance.
     function register(uint256 id, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
         external
         virtual
@@ -291,6 +316,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         _register(amountOfTokens, id, tier);
     }
 
+    /// @notice Register to the sale requiring approval. Requires a signature proving that user
+    /// has the provided amountOfTokens balance and an approval signature.
     function registerWithApprove(
         uint256 id,
         Types.UserTiers tier,
@@ -303,6 +330,10 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         _register(amountOfTokens, id, tier);
     }
 
+    /// @notice Function for purchasing tokens from the given sale.
+    /// Callable by either a registered user or YieldStaking contract.
+    /// @param signature Optional signature used when processing YieldStaking purchases of
+    /// tokens requiring approval.
     function buyTokens(uint256 id, address paymentContract, uint256 volume, address receiver, bytes memory signature)
         external
         payable
@@ -339,6 +370,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
             }
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
             require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
+            // Validate signature for tokens requiring it.
             if (placedToken.approved) {
                 _validateApproveSignature(receiver, id, signature);
             }
@@ -362,6 +394,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return tokensAmount;
     }
 
+    /// @notice Function allowing admins to claim any tokens which were not sold during sale.
     function claimRemainders(uint256 id) external onlyOperatorOrOwner {
         Types.PlacedToken storage placedToken = placedTokens[id];
 
@@ -375,6 +408,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         IERC20(placedToken.token).safeTransfer(owner(), volume);
     }
 
+    /// @notice Function allowing users to claim their bought tokens unlocked during TGE and vesting.
     function claimTokens(uint256 id) external {
         Types.PlacedToken storage placedToken = placedTokens[id];
         Types.User storage user = users[id][msg.sender];

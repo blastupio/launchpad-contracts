@@ -14,6 +14,27 @@ import {WadMath} from "./libraries/WadMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
+/// @notice Contract keeping collection of staking pools (USDB and WETH only for now).
+/// Pools are functioning by tracking "index". It is being set to 1 initially and increases
+/// over time when USDB/WETH rewards accrue.
+///
+/// Each pool tracks totalSupplyScaled which is basically total amount of shares all users
+/// deposited into pool have.
+///
+/// Basically index = tokenBalanceOfThePool / totalSupplyScaled.
+///
+/// Each user has certain number of pool shares, thus totalSupplyScaled is always equal to the
+/// sum of all users shares balances.
+///
+/// Precision loss might occur during balance accounting via indexes and shares, thus we are also
+/// tracking "remainders" for each user. Those remainders are denoted in actual tokens rather than
+/// shares and do not accrue yield. This mechanic allows us to ensure that no user funds are lost due
+/// to precision while also fairly and correctly distributing rewards through index growth.
+///
+/// Primary purpose of this contract is to allow users to spend their accrued yield on Launchpad.
+/// Users should on;y be able to spend yield and not their direct balance, thus, for each
+/// user deposit we are tracking and locking amount which he deposited and only allow withdrawal
+/// of additional funds accrued as yield.
 contract YieldStaking is OwnableUpgradeable {
     using WadMath for uint256;
     using SafeERC20 for IERC20Rebasing;
@@ -31,21 +52,32 @@ contract YieldStaking is OwnableUpgradeable {
     /* ========== STORAGE VARIABLES ========== */
     // Always add to the bottom! Contract is upgradeable
 
-    uint256 public minUSDBStakeValue; // in USDB
+    /// @notice Minimal balance user is required to have after deposit.
+    /// Denoted in USDB.
+    uint256 public minUSDBStakeValue;
+
+    /// @notice Lock duration after which deposited tokens can be withdrawn.
     uint256 public minTimeToWithdraw;
 
-    struct StakingUser {
-        uint256 balanceScaled;
-        // deposits - withdrawals
-        uint256 lockedBalance;
-        uint256 remainders;
-        uint256 timestampToWithdraw;
+    struct StakingInfo {
+        // Sum of all user.balanceScaled values.
+        uint256 totalSupplyScaled;
+        // Index of the pool, updated on every rewards claim.
+        uint256 lastIndex;
+        // State of users deposited into the pool.
+        mapping(address => StakingUser) users;
     }
 
-    struct StakingInfo {
-        uint256 totalSupplyScaled;
-        uint256 lastIndex;
-        mapping(address => StakingUser) users;
+    struct StakingUser {
+        // Share of the user in the pool
+        uint256 balanceScaled;
+        // deposits - withdrawals. Used to track amount which is locked
+        // and can only be withdrawn rather than claimed.
+        uint256 lockedBalance;
+        // Remainders which did not fit into balanceScaled.
+        uint256 remainders;
+        // The point of time at which user's funds will be unlocked.
+        uint256 timestampToWithdraw;
     }
 
     mapping(address => StakingInfo) public stakingInfos;
@@ -80,6 +112,7 @@ contract YieldStaking is OwnableUpgradeable {
         return stakingInfos[targetToken].users[user];
     }
 
+    /// @notice Calculates the next index depending on amounts of rewards accrued.
     function _calculateIndex(uint256 _lastIndex, uint256 scaledSupply, uint256 rewards)
         internal
         pure
@@ -91,6 +124,7 @@ contract YieldStaking is OwnableUpgradeable {
         return _lastIndex + rewards.wadDiv(scaledSupply);
     }
 
+    /// @notice Fetches rewards available for claim and calculates the next index for the pool.
     function lastIndex(address targetToken) public view returns (uint256) {
         StakingInfo storage info = stakingInfos[targetToken];
         uint256 rewards = IERC20Rebasing(targetToken).getClaimableAmount(address(this));
@@ -101,10 +135,13 @@ contract YieldStaking is OwnableUpgradeable {
         return stakingInfos[targetToken].totalSupplyScaled.wadMul(lastIndex(targetToken));
     }
 
+    /// @notice Calculates total amount of tokens available to a user, including rewards.
     function _getUserBalance(StakingUser memory user, uint256 index) internal pure returns (uint256) {
         return user.balanceScaled.wadMul(index) + user.remainders;
     }
 
+    /// @notice Returns user's balance divided into locked balance which can only be withdrawn
+    /// and rewards which can be claimed.
     function balanceAndRewards(address targetToken, address account)
         public
         view
@@ -117,14 +154,17 @@ contract YieldStaking is OwnableUpgradeable {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
+    /// @notice Wraps native ETH into WETH.
     function _wrapETH() internal {
         IWETH(address(WETH)).deposit{value: msg.value}();
     }
 
+    /// @notice Unwraps WETH into ETH.
     function _unwrapETH(uint256 amount) internal {
         IWETH(address(WETH)).withdraw(amount);
     }
 
+    /// @notice Claims all pending rewards and update index.
     function _updateLastIndex(StakingInfo storage info, address token) internal {
         uint256 amount = IERC20Rebasing(token).getClaimableAmount(address(this));
         if (amount > 0) {
@@ -133,6 +173,8 @@ contract YieldStaking is OwnableUpgradeable {
         }
     }
 
+    /// @notice Main function for altering user's balance. Balance is being divided into
+    /// scaled balance (shares) and remainders depending on index.
     function _setBalance(StakingInfo storage info, StakingUser storage user, uint256 newBalance) internal {
         uint256 newBalanceScaled = newBalance.wadDiv(info.lastIndex);
 
@@ -142,11 +184,25 @@ contract YieldStaking is OwnableUpgradeable {
         user.remainders = newBalance - newBalanceScaled.wadMul(info.lastIndex);
     }
 
-    function _convertETHToUSDB(uint256 volume) internal view returns (uint256) {
-        (, int256 ans,,,) = oracle.latestRoundData();
-        return uint256(ans) * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
+    /// @notice Fetches ETH price from oracle, performing additional safety checks to ensure the oracle is healthy.
+    function _getETHPrice() private view returns (uint256) {
+        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
+
+        require(answeredInRound >= roundID, "Stale price");
+        require(timestamp != 0, "Round not complete");
+        require(price > 0, "Chainlink price reporting 0");
+
+        return uint256(price);
     }
 
+    /// @notice Converts given amount of ETH to USDB, using oracle price
+    function _convertETHToUSDB(uint256 volume) private view returns (uint256) {
+        // price * volume * real_usdb_decimals / (eth_decimals * oracle_decimals)
+        return _getETHPrice() * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
+    }
+
+    /// @notice Converts given amount of either WETH or USDB into USDB, using oracle price
+    /// for WETH.
     function _convertToUSDB(uint256 volume, address token) internal view returns (uint256) {
         return token != address(USDB) ? _convertETHToUSDB(volume) : volume;
     }
@@ -161,9 +217,9 @@ contract YieldStaking is OwnableUpgradeable {
         minUSDBStakeValue = _minUSDBStakeValue;
     }
 
-    /*
-        @param depositToken must be WETH or USDB
-    */
+    /// @notice Function for staking selected token in the pool.
+    /// Updates index and increases user balance.
+    /// @param depositToken must be WETH or USDB
     function stake(address depositToken, uint256 amount) external payable {
         if (msg.value > 0) {
             depositToken = address(WETH);
@@ -194,6 +250,14 @@ contract YieldStaking is OwnableUpgradeable {
         emit Staked(depositToken, msg.sender, amount);
     }
 
+    /// @notice Function for claiming accrued rewards.
+    /// @param targetToken pool for which rewards are being claimed
+    /// @param rewardToken either same as targetToken to get rewards directly, or
+    /// a token of the project on Launchpad, to use accrued rewards for purchasing a token
+    /// during sale.
+    /// @param getETH Flag to unwrap and send native ETH if WETH withdrawal is requested.
+    /// @param signature Optional signature for purchasing tokens from sales requiring approval.
+    /// @param id Id of the Launchpad sale to spend rewards on.
     function claimReward(
         address targetToken,
         address rewardToken,
@@ -237,6 +301,9 @@ contract YieldStaking is OwnableUpgradeable {
         emit RewardClaimed(targetToken, msg.sender, rewardToken, rewardAmount);
     }
 
+    /// @notice Withdraw funds from the pool.
+    /// Only balance initially deposited can be withdrawn, all other tokens must be claimed
+    /// through claimReward.
     function withdraw(address targetToken, uint256 amount, bool getETH) external {
         StakingInfo storage info = stakingInfos[targetToken];
         StakingUser storage user = info.users[msg.sender];
