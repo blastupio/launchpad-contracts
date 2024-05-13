@@ -22,9 +22,8 @@ contract LaunchpadV2 is Launchpad {
         Launchpad(_weth, _usdb, _oracle, _yieldStaking)
     {}
 
-    function initializeV2(address _blpStaking, address _points, address _pointsOperator) public reinitializer(2) {
+    function initializeV2(address _blpStaking) public reinitializer(2) {
         blpStaking = _blpStaking;
-        IBlastPoints(_points).configurePointsOperator(_pointsOperator);
     }
 
     /* ========== FUNCTIONS ========== */

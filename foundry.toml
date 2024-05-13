@@ -15,3 +15,9 @@ runs = 1000
 depth = 20
 runs = 1000
 fail_on_revert = true
+
+[rpc_endpoints]
+blast_sepolia = "${BLAST_SEPOLIA_URL}"
+
+[etherscan]
+blast_sepolia = { key = "${BLASTSCAN_API_KEY}", url = "https://api-sepolia.blastscan.io/api", chain = 168587773 }
