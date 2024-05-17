@@ -157,7 +157,9 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: currentToken
+            token: currentToken,
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(launchpad.owner());

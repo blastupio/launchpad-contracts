@@ -51,4 +51,21 @@ contract LaunchpadV2 is Launchpad {
     {
         revert("Not implemented");
     }
+
+    function buyWithRegister(uint256, address, uint256, bytes memory, uint256) external payable override {
+        revert("Not implemented");
+    }
+
+    function buyWithRegisterV2(uint256 id, address paymentContract, uint256 volume) external payable {
+        (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
+        require(
+            amountOfTokens >= minAmountForTier[placedTokens[id].fcfsRequiredTier],
+            "BlastUP: you do not have enough BLP tokens"
+        );
+        require(getStatus(id) == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status");
+        require(placedTokens[id].fcfsOpened, "BlastUP: fcfs for all holders is not open");
+        users[id][msg.sender].registered = true;
+        users[id][msg.sender].tier = placedTokens[id].fcfsRequiredTier;
+        _buyTokens(id, paymentContract, volume, msg.sender, bytes(""));
+    }
 }

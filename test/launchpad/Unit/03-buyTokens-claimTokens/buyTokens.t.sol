@@ -144,7 +144,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -197,7 +199,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);

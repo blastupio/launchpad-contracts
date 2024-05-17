@@ -70,7 +70,7 @@ contract BLPStakingHandler is CommonBase, StdCheats, StdUtils, StdAssertions {
             ghost_userRealClaimedRewards[currentActor] += reward;
         }
 
-        uint256 preClaculatedReward = ((balance + amount) * percent / 1e4) * lockTime / 365 days;
+        uint256 preClaculatedReward = ((balance + amount) * percent / 1e4) * lockTime / 365 days + 1;
 
         ghost_userPreCalculatedRewards[currentActor] += preClaculatedReward;
         blp.mint(address(staking), preClaculatedReward);

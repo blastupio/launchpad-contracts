@@ -29,4 +29,12 @@ interface ILaunchpad {
         returns (uint256);
 
     function claimTokens(uint256 id) external;
+
+    function buyWithRegister(
+        uint256 id,
+        address paymentContract,
+        uint256 volume,
+        bytes memory signature,
+        uint256 blpBalance
+    ) external payable;
 }
