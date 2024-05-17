@@ -66,7 +66,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
     }
 
     function test_registerV2() public placeTokens {
-        uint256 amount = 10_000; // BLP
+        uint256 amount = 10_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.GOLD;
         Types.UserTiers tierDiamond = Types.UserTiers.DIAMOND;
         uint256 lockTime = 100;

@@ -162,6 +162,11 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         return _getETHPrice() * volume * (10 ** decimalsUSDB) / (10 ** oracleDecimals) / (10 ** 18);
     }
 
+    /// @notice Converts given amount of USDB to ETH, using oracle price
+    function _convertUSDBToETH(uint256 volume) private view returns (uint256) {
+        return volume * (10 ** 18) * (10 ** oracleDecimals) / (10 ** decimalsUSDB) / _getETHPrice();
+    }
+
     /// @notice Converts given volume to the amount of tokens which can be purchased from the sale,
     /// depending on the sale price, token decimals and converting ETH to USDB if required.
     function _calculateTokensAmount(uint256 volume, address paymentContract, uint8 decimals, uint256 price)
@@ -361,15 +366,25 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
         uint256 tokensAmount =
             _calculateTokensAmount(volume, paymentContract, placedToken.tokenDecimals, placedToken.price);
+        uint256 newVolume;
 
         if (msg.sender != yieldStaking) {
             require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
-            require(userAllowedAllocation(id, msg.sender) >= tokensAmount, "BlastUP: You have not enough allocation");
+            uint256 allowedAllocation = userAllowedAllocation(id, msg.sender);
+            require(allowedAllocation > 0, "BlastUP: You have not enough allocation");
+            if (allowedAllocation < tokensAmount) {
+                tokensAmount = allowedAllocation;
+                newVolume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
+            } 
             if (status == Types.SaleStatus.PUBLIC_SALE) {
                 user.boughtPublicSale += tokensAmount;
             }
         } else if (status == Types.SaleStatus.PUBLIC_SALE) {
-            require(tokensAmount <= placedToken.volumeForYieldStakers, "BlastUP: Not enough volume");
+            require(placedToken.volumeForYieldStakers > 0, "BlastUP: Not enough volume");
+            if (tokensAmount > placedToken.volumeForYieldStakers) {
+                tokensAmount = placedToken.volumeForYieldStakers;
+                newVolume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
+            } 
             // Validate signature for tokens requiring it.
             if (placedToken.approved) {
                 _validateApproveSignature(receiver, id, signature);
@@ -383,15 +398,23 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         placedToken.volume -= tokensAmount;
 
         if (msg.value > 0) {
-            (bool success,) = payable(placedToken.addressForCollected).call{value: msg.value}("");
+            bool success;
+            if (newVolume > 0) {
+                newVolume = _convertUSDBToETH(newVolume);
+                (success,) = payable(msg.sender).call{value: msg.value - newVolume}("");
+                require(success, "BlastUP: failed to send ETH");
+            } else {
+                newVolume = msg.value;
+            }
+            (success,) = payable(placedToken.addressForCollected).call{value: newVolume}("");
             require(success, "BlastUP: failed to send ETH");
         } else {
-            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, volume);
+            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, newVolume);
         }
 
         emit TokensBought(placedToken.token, receiver, id, tokensAmount);
 
-        return tokensAmount;
+        return newVolume;
     }
 
     /// @notice Function allowing admins to claim any tokens which were not sold during sale.

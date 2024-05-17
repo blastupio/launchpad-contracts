@@ -78,7 +78,7 @@ contract BLPStakeTest is BaseBLPStaking {
         vm.stopPrank();
         assertEq(stakingBLP.totalLocked(), amount);
         vm.prank(admin);
-        vm.expectRevert("BlastUP: amount gt allowed to be withdrawn");
+        vm.expectRevert("BlastUP: insolvency");
         stakingBLP.withdrawFunds(amount);
 
         uint256 reward = stakingBLP.getRewardOf(user);

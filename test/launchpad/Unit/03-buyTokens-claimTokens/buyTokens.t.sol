@@ -210,7 +210,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier register() {
-        uint256 amountOfTokens = 2000;
+        uint256 amountOfTokens = 2000 * (10 ** 18);
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         bytes memory signature = _getSignature(user, amountOfTokens);
 
@@ -224,8 +224,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier registerFuzz(uint256 amountOfTokens, uint256 amountOfTokens2) {
-        amountOfTokens = bound(amountOfTokens, 2000, 19999);
-        amountOfTokens2 = bound(amountOfTokens2, 20000, 1e30);
+        amountOfTokens = bound(amountOfTokens, 2000 * (10 ** 18), 19999 * (10 ** 18));
+        amountOfTokens2 = bound(amountOfTokens2, 20000 * (10 ** 18), 1e30);
 
         Types.UserTiers tier = _getTierByAmount(amountOfTokens);
         Types.UserTiers tier2 = _getTierByAmount(amountOfTokens2);
