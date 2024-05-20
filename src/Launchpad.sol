@@ -11,6 +11,7 @@ import {ILaunchpad, LaunchpadDataTypes as Types} from "./interfaces/ILaunchpad.s
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
+import {console} from "forge-std/console.sol";
 
 contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using SafeERC20 for IERC20;
@@ -169,20 +170,35 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     /// @notice Converts given volume to the amount of tokens which can be purchased from the sale,
     /// depending on the sale price, token decimals and converting ETH to USDB if required.
-    function _calculateTokensAmount(uint256 volume, address paymentContract, uint8 decimals, uint256 price)
-        private
-        view
-        returns (uint256)
-    {
+    function _calculateTokensAmount(
+        uint256 volume,
+        address paymentContract,
+        uint8 decimals,
+        uint256 price,
+        uint256 availableVolume
+    ) private returns (uint256, uint256) {
+        require(availableVolume > 0, "BlastUP: Not enough volume or allocation");
         if (paymentContract == address(WETH)) {
             volume = _convertETHToUSDB(volume);
         }
 
+        console.log("volume eth in usdb", volume);
+
         uint256 tokensAmount = (volume * (10 ** decimals)) / price;
-
         require(tokensAmount > 0, "BlastUP: you can not buy zero tokens");
+        console.log("tokensAmount", tokensAmount);
 
-        return tokensAmount;
+        if (tokensAmount > availableVolume) {
+            tokensAmount = availableVolume;
+            volume = tokensAmount * price / (10 ** decimals);
+            if (paymentContract == address(WETH)) {
+                volume = _convertUSDBToETH(volume);
+            }
+        } else if (paymentContract == address(WETH)) {
+            volume = msg.value;
+        }
+
+        return (tokensAmount, volume);
     }
 
     /// @notice Registers a user to the sale with the given tier, validating that amountOfTokens
@@ -191,7 +207,11 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         Types.PlacedToken storage placedToken = placedTokens[id];
         Types.User storage user = users[id][msg.sender];
 
-        require(getStatus(id) == Types.SaleStatus.REGISTRATION, "BlastUP: invalid status");
+        require(
+            getStatus(id) == Types.SaleStatus.REGISTRATION
+                || getStatus(id) == Types.SaleStatus.FCFS_SALE && placedToken.fcfsOpened,
+            "BlastUP: invalid status"
+        );
         require(!user.registered, "BlastUP: you are already registered");
         require(minAmountForTier[tier] <= amountOfTokens, "BlastUP: you do not have enough BLP tokens for that tier");
 
@@ -219,78 +239,6 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         address signer_ = keccak256(abi.encodePacked(user, id, address(this), block.chainid)).toEthSignedMessageHash()
             .recover(signature);
         require(signer_ == signer, "BlastUP: Invalid signature");
-    }
-
-    function _buyTokens(uint256 id, address paymentContract, uint256 volume, address receiver, bytes memory signature)
-        internal
-        returns (uint256)
-    {
-        Types.PlacedToken storage placedToken = placedTokens[id];
-        Types.User storage user = users[id][receiver];
-        Types.SaleStatus status = getStatus(id);
-
-        if (msg.value > 0) {
-            paymentContract = address(WETH);
-            volume = msg.value;
-        } else {
-            require(volume > 0, "BlastUP: volume must be greater than 0");
-            require(
-                (paymentContract == address(WETH)) || (paymentContract == address(USDB)),
-                "BlastUP: incorrect payment contract"
-            );
-        }
-
-        uint256 tokensAmount =
-            _calculateTokensAmount(volume, paymentContract, placedToken.tokenDecimals, placedToken.price);
-        uint256 newVolume;
-
-        if (msg.sender != yieldStaking) {
-            require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
-            uint256 allowedAllocation = userAllowedAllocation(id, msg.sender);
-            require(allowedAllocation > 0, "BlastUP: You have not enough allocation");
-            if (allowedAllocation < tokensAmount) {
-                tokensAmount = allowedAllocation;
-                newVolume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
-            }
-            if (status == Types.SaleStatus.PUBLIC_SALE) {
-                user.boughtPublicSale += tokensAmount;
-            }
-        } else if (status == Types.SaleStatus.PUBLIC_SALE) {
-            require(placedToken.volumeForYieldStakers > 0, "BlastUP: Not enough volume");
-            if (tokensAmount > placedToken.volumeForYieldStakers) {
-                tokensAmount = placedToken.volumeForYieldStakers;
-                newVolume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals);
-            }
-            // Validate signature for tokens requiring it.
-            if (placedToken.approved) {
-                _validateApproveSignature(receiver, id, signature);
-            }
-            placedToken.volumeForYieldStakers -= tokensAmount;
-        } else {
-            revert("Invalid sale status");
-        }
-
-        user.boughtAmount += tokensAmount;
-        placedToken.volume -= tokensAmount;
-
-        if (msg.value > 0) {
-            bool success;
-            if (newVolume > 0) {
-                newVolume = _convertUSDBToETH(newVolume);
-                (success,) = payable(msg.sender).call{value: msg.value - newVolume}("");
-                require(success, "BlastUP: failed to send ETH");
-            } else {
-                newVolume = msg.value;
-            }
-            (success,) = payable(placedToken.addressForCollected).call{value: newVolume}("");
-            require(success, "BlastUP: failed to send ETH");
-        } else {
-            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, newVolume);
-        }
-
-        emit TokensBought(placedToken.token, receiver, id, tokensAmount);
-
-        return newVolume;
     }
 
     /* ========== FUNCTIONS ========== */
@@ -393,7 +341,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     /// @notice Register to the sale, requires a signature proving that user has the provided amountOfTokens balance.
     function register(uint256 id, Types.UserTiers tier, uint256 amountOfTokens, bytes memory signature)
-        external
+        public
         virtual
     {
         require(!placedTokens[id].approved, "BlastUP: you need to use register with approve function");
@@ -420,16 +368,71 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
     /// @param signature Optional signature used when processing YieldStaking purchases of
     /// tokens requiring approval.
     function buyTokens(uint256 id, address paymentContract, uint256 volume, address receiver, bytes memory signature)
-        external
+        public
         payable
-        virtual
-        returns (uint256)
+        override
+        returns (uint256, uint256)
     {
+        Types.PlacedToken storage placedToken = placedTokens[id];
+        Types.User storage user = users[id][receiver];
         Types.SaleStatus status = getStatus(id);
+
         require(
             status == Types.SaleStatus.PUBLIC_SALE || status == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status"
         );
-        return _buyTokens(id, paymentContract, volume, receiver, signature);
+
+        if (msg.value > 0) {
+            paymentContract = address(WETH);
+            volume = msg.value;
+        } else {
+            require(volume > 0, "BlastUP: volume must be greater than 0");
+            require(
+                (paymentContract == address(WETH)) || (paymentContract == address(USDB)),
+                "BlastUP: incorrect payment contract"
+            );
+        }
+
+        (uint256 tokensAmount, uint256 newVolume) = _calculateTokensAmount(
+            volume,
+            paymentContract,
+            placedToken.tokenDecimals,
+            placedToken.price,
+            msg.sender == yieldStaking ? placedToken.volumeForYieldStakers : userAllowedAllocation(id, msg.sender)
+        );
+
+        if (msg.sender != yieldStaking) {
+            require(msg.sender == receiver, "BlastUP: the receiver must be the sender");
+            if (status == Types.SaleStatus.PUBLIC_SALE) {
+                user.boughtPublicSale += tokensAmount;
+            }
+        } else if (status == Types.SaleStatus.PUBLIC_SALE) {
+            // Validate signature for tokens requiring it.
+            if (placedToken.approved) {
+                _validateApproveSignature(receiver, id, signature);
+            }
+            placedToken.volumeForYieldStakers -= tokensAmount;
+        } else {
+            revert("Invalid sale status");
+        }
+
+        user.boughtAmount += tokensAmount;
+        placedToken.volume -= tokensAmount;
+
+        if (msg.value > 0) {
+            bool success;
+            if (newVolume != msg.value) {
+                (success,) = payable(msg.sender).call{value: msg.value - newVolume}("");
+                require(success, "BlastUP: failed to send ETH");
+            }
+            (success,) = payable(placedToken.addressForCollected).call{value: newVolume}("");
+            require(success, "BlastUP: failed to send ETH");
+        } else {
+            IERC20(paymentContract).safeTransferFrom(msg.sender, placedToken.addressForCollected, newVolume);
+        }
+
+        emit TokensBought(placedToken.token, receiver, id, tokensAmount);
+
+        return (newVolume, tokensAmount);
     }
 
     /// @notice Function for purchasing tokens from the given sale.
@@ -442,16 +445,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         bytes memory signature,
         uint256 blpBalance
     ) external payable virtual {
-        _validateUserBalanceSignature(blpBalance, signature);
-        require(
-            blpBalance >= minAmountForTier[placedTokens[id].fcfsRequiredTier],
-            "BlastUP: you do not have enough BLP tokens"
-        );
-        require(getStatus(id) == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status");
-        require(placedTokens[id].fcfsOpened, "BlastUP: fcfs for all holders is not open");
-        users[id][msg.sender].registered = true;
-        users[id][msg.sender].tier = placedTokens[id].fcfsRequiredTier;
-        _buyTokens(id, paymentContract, volume, msg.sender, bytes(""));
+        register(id, placedTokens[id].fcfsRequiredTier, blpBalance, signature);
+        buyTokens(id, paymentContract, volume, msg.sender, bytes(""));
     }
 
     /// @notice Function allowing admins to claim any tokens which were not sold during sale.

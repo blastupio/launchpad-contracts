@@ -28,7 +28,7 @@ contract LaunchpadV2 is Launchpad {
 
     /* ========== FUNCTIONS ========== */
 
-    function registerV2(uint256 id, Types.UserTiers tier) external {
+    function registerV2(uint256 id, Types.UserTiers tier) public {
         require(!placedTokens[id].approved, "BlastUP: you need to use register with approve function");
         (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
         _register(amountOfTokens, id, tier);
@@ -40,7 +40,7 @@ contract LaunchpadV2 is Launchpad {
         _register(amountOfTokens, id, tier);
     }
 
-    function register(uint256, Types.UserTiers, uint256, bytes memory) external pure override {
+    function register(uint256, Types.UserTiers, uint256, bytes memory) public pure override {
         revert("Not implemented");
     }
 
@@ -57,15 +57,7 @@ contract LaunchpadV2 is Launchpad {
     }
 
     function buyWithRegisterV2(uint256 id, address paymentContract, uint256 volume) external payable {
-        (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
-        require(
-            amountOfTokens >= minAmountForTier[placedTokens[id].fcfsRequiredTier],
-            "BlastUP: you do not have enough BLP tokens"
-        );
-        require(getStatus(id) == Types.SaleStatus.FCFS_SALE, "BlastUP: invalid status");
-        require(placedTokens[id].fcfsOpened, "BlastUP: fcfs for all holders is not open");
-        users[id][msg.sender].registered = true;
-        users[id][msg.sender].tier = placedTokens[id].fcfsRequiredTier;
-        _buyTokens(id, paymentContract, volume, msg.sender, bytes(""));
+        registerV2(id, placedTokens[id].fcfsRequiredTier);
+        buyTokens(id, paymentContract, volume, msg.sender, bytes(""));
     }
 }
