@@ -2,7 +2,7 @@
 pragma solidity >=0.8.25;
 
 import {BaseLaunchpadTest, Launchpad, Types, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
-import {LaunchpadV2, ILaunchpadV2, BLPStaking} from "../../../../src/LaunchpadV2.sol";
+import {LaunchpadV2, BLPStaking} from "../../../../src/LaunchpadV2.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/console.sol";
 
@@ -89,11 +89,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.startPrank(user);
-        vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).register(id, tier, amount, bytes(""));
-        vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).registerWithApprove(id, tier, amount, bytes(""), bytes(""));
-        ILaunchpadV2(address(launchpad)).registerV2(id, tier);
+        launchpad.register(id, tier, 0, bytes(""));
         Types.User memory userInfo = launchpad.userInfo(id, user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));
@@ -103,6 +99,6 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
         vm.prank(user2);
         vm.expectRevert("BlastUP: you do not have enough BLP tokens for that tier");
-        ILaunchpadV2(address(launchpad)).registerV2(id, tierDiamond);
+        launchpad.register(id, tierDiamond, 0, bytes(""));
     }
 }

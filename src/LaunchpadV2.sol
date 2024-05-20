@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.25;
 
-import {ILaunchpadV2, LaunchpadDataTypes as Types} from "./interfaces/ILaunchpadV2.sol";
+import {LaunchpadDataTypes as Types} from "./libraries/LaunchpadDataTypes.sol";
 import {BLPStaking} from "./BLPStaking.sol";
 import {Launchpad} from "./Launchpad.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
@@ -28,36 +28,18 @@ contract LaunchpadV2 is Launchpad {
 
     /* ========== FUNCTIONS ========== */
 
-    function registerV2(uint256 id, Types.UserTiers tier) public {
+    function register(uint256 id, Types.UserTiers tier, uint256, bytes memory) public override {
         require(!placedTokens[id].approved, "BlastUP: you need to use register with approve function");
         (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
         _register(amountOfTokens, id, tier);
     }
 
-    function registerV2WithApprove(uint256 id, Types.UserTiers tier, bytes memory signature) external {
-        (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
-        _validateApproveSignature(msg.sender, id, signature);
-        _register(amountOfTokens, id, tier);
-    }
-
-    function register(uint256, Types.UserTiers, uint256, bytes memory) public pure override {
-        revert("Not implemented");
-    }
-
-    function registerWithApprove(uint256, Types.UserTiers, uint256, bytes memory, bytes memory)
+    function registerWithApprove(uint256 id, Types.UserTiers tier, uint256, bytes memory, bytes memory approveSignature)
         external
-        pure
         override
     {
-        revert("Not implemented");
-    }
-
-    function buyWithRegister(uint256, address, uint256, bytes memory, uint256) external payable override {
-        revert("Not implemented");
-    }
-
-    function buyWithRegisterV2(uint256 id, address paymentContract, uint256 volume) external payable {
-        registerV2(id, placedTokens[id].fcfsRequiredTier);
-        buyTokens(id, paymentContract, volume, msg.sender, bytes(""));
+        (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
+        _validateApproveSignature(msg.sender, id, approveSignature);
+        _register(amountOfTokens, id, tier);
     }
 }
