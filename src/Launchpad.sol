@@ -11,7 +11,6 @@ import {ILaunchpad, LaunchpadDataTypes as Types} from "./interfaces/ILaunchpad.s
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
-import {console} from "forge-std/console.sol";
 
 contract Launchpad is OwnableUpgradeable, ILaunchpad {
     using SafeERC20 for IERC20;
@@ -176,17 +175,15 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         uint8 decimals,
         uint256 price,
         uint256 availableVolume
-    ) private returns (uint256, uint256) {
+    ) private view returns (uint256, uint256) {
         require(availableVolume > 0, "BlastUP: Not enough volume or allocation");
+        uint256 ethVolume = volume;
         if (paymentContract == address(WETH)) {
             volume = _convertETHToUSDB(volume);
         }
 
-        console.log("volume eth in usdb", volume);
-
         uint256 tokensAmount = (volume * (10 ** decimals)) / price;
         require(tokensAmount > 0, "BlastUP: you can not buy zero tokens");
-        console.log("tokensAmount", tokensAmount);
 
         if (tokensAmount > availableVolume) {
             tokensAmount = availableVolume;
@@ -195,7 +192,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
                 volume = _convertUSDBToETH(volume);
             }
         } else if (paymentContract == address(WETH)) {
-            volume = msg.value;
+            volume = ethVolume;
         }
 
         return (tokensAmount, volume);

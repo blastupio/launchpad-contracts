@@ -111,6 +111,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
         Types.User memory userInfo = launchpad.userInfo(id, _user);
         assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
+        vm.assertEq(ERC20Mock(paymentContract).balanceOf(placedToken.addressForCollected), volume);
         vm.stopPrank();
     }
 
@@ -370,6 +371,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
         (uint256 realTokensAmount, uint256 newVolume) = launchpad.buyTokens(id, address(USDB), volume, user, bytes(""));
         vm.assertEq(USDB.balanceOf(user), volume - newVolume);
         vm.assertEq(tokensAmount, realTokensAmount);
+        vm.assertEq(USDB.balanceOf(placedToken.addressForCollected), newVolume);
     }
 
     function test_buyAndClaimFuzz(
