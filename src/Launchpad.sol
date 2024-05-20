@@ -169,6 +169,8 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
 
     /// @notice Converts given volume to the amount of tokens which can be purchased from the sale,
     /// depending on the sale price, token decimals and converting ETH to USDB if required.
+    ///
+    /// If volume available for sale is smaller than amount / price, amount is adjusted.
     function _calculateTokensAmount(
         uint256 volume,
         address paymentContract,
@@ -177,25 +179,31 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         uint256 availableVolume
     ) private view returns (uint256, uint256) {
         require(availableVolume > 0, "BlastUP: Not enough volume or allocation");
-        uint256 ethVolume = volume;
+        uint256 usdbVolume;
         if (paymentContract == address(WETH)) {
-            volume = _convertETHToUSDB(volume);
+            usdbVolume = _convertETHToUSDB(volume);
+        } else {
+            usdbVolume = volume;
         }
 
-        uint256 tokensAmount = (volume * (10 ** decimals)) / price;
+        uint256 tokensAmount = (usdbVolume * (10 ** decimals)) / price;
         require(tokensAmount > 0, "BlastUP: you can not buy zero tokens");
 
         if (tokensAmount > availableVolume) {
             tokensAmount = availableVolume;
-            volume = tokensAmount * price / (10 ** decimals);
-            if (paymentContract == address(WETH)) {
-                volume = _convertUSDBToETH(volume);
-            }
-        } else if (paymentContract == address(WETH)) {
-            volume = ethVolume;
-        }
+            uint256 newUsdbVolume = tokensAmount * price / (10 ** decimals);
 
-        return (tokensAmount, volume);
+            uint256 newVolume;
+            if (paymentContract == address(WETH)) {
+                newVolume = _convertUSDBToETH(newUsdbVolume);
+            } else {
+                newVolume = newUsdbVolume;
+            }
+
+            return (tokensAmount, newVolume);
+        } else {
+            return (tokensAmount, volume);
+        }
     }
 
     /// @notice Registers a user to the sale with the given tier, validating that amountOfTokens
