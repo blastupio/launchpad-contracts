@@ -8,6 +8,7 @@ import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../Helpers/AddressSet.sol";
 import {Launchpad, ERC20Mock, Types, MessageHashUtils, ECDSA} from "../../BaseLaunchpad.t.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
     using LibAddressSet for AddressSet;
@@ -63,11 +64,6 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         _;
     }
 
-    modifier countCall(bytes32 key) {
-        calls[key]++;
-        _;
-    }
-
     constructor(Launchpad _launchpad, address _usdb, address _weth, uint256 _adminPrivateKey) {
         launchpad = _launchpad;
         usdb = _usdb;
@@ -120,7 +116,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         uint256 price,
         uint256 tgePercent,
         uint256 percentHighTiers
-    ) public createToken countCall("placeTokens") {
+    ) public createToken {
         initialVolume = bound(initialVolume, 1e19, 1e38);
         addressForCollected =
             addressForCollected == address(0) ? address(uint160(initialVolume) * 2 / 3) : addressForCollected;
@@ -145,8 +141,8 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
             volume: initialVolume,
             addressForCollected: addressForCollected,
             registrationStart: block.timestamp + 1,
-            registrationEnd: block.timestamp + 11,
-            publicSaleStart: block.timestamp + 21,
+            registrationEnd: block.timestamp + 2,
+            publicSaleStart: block.timestamp + 3,
             fcfsSaleStart: type(uint256).max - 3,
             saleEnd: type(uint256).max - 2,
             tgeStart: type(uint256).max - 1,
@@ -187,7 +183,6 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         public
         useActor(actorSeed)
         useToken(tokenSeed)
-        countCall("buyTokens")
     {
         Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
@@ -232,30 +227,30 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.PUBLIC_SALE);
-        _fcfsSaleStart = bound(_fcfsSaleStart, placedToken.publicSaleStart + 10, 1e50);
+        vm.assume(placedToken.fcfsSaleStart > block.timestamp);
+        _fcfsSaleStart = bound(_fcfsSaleStart, Math.max(placedToken.publicSaleStart + 100, block.timestamp + 1), 1e20);
         vm.prank(launchpad.owner());
         launchpad.setFCFSSaleStart(currentTokenId, _fcfsSaleStart);
-        vm.warp(_fcfsSaleStart);
     }
 
     function setSaleEnd(uint256 tokenSeed, uint256 _saleEnd) public useToken(tokenSeed) {
         Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.FCFS_SALE);
-        _saleEnd = bound(_saleEnd, placedToken.fcfsSaleStart + 10, 1e50);
+        vm.assume(placedToken.saleEnd > block.timestamp);
+        _saleEnd = bound(_saleEnd, Math.max(placedToken.fcfsSaleStart + 100, block.timestamp + 1), 1e30);
         vm.prank(launchpad.owner());
         launchpad.setSaleEnd(currentTokenId, _saleEnd);
-        vm.warp(_saleEnd);
     }
 
     function setTgeStart(uint256 tokenSeed, uint256 _tgeStart) public useToken(tokenSeed) {
         Types.PlacedToken memory placedToken = launchpad.getPlacedToken(currentTokenId);
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
-        _tgeStart = bound(_tgeStart, placedToken.saleEnd + 10, 1e50);
+        vm.assume(placedToken.tgeStart > block.timestamp);
+        _tgeStart = bound(_tgeStart, Math.max(placedToken.saleEnd + 100, block.timestamp + 1), 1e40);
         vm.prank(launchpad.owner());
         launchpad.setTgeStart(currentTokenId, _tgeStart);
-        vm.warp(_tgeStart);
     }
 
     function setVestingStart(uint256 tokenSeed, uint256 _vestingStart) public useToken(tokenSeed) {
@@ -263,10 +258,10 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
         vm.assume(placedToken.tgeStart != type(uint256).max - 1);
-        _vestingStart = bound(_vestingStart, placedToken.tgeStart + 10, 1e50);
+        vm.assume(placedToken.vestingStart > block.timestamp);
+        _vestingStart = bound(_vestingStart, Math.max(placedToken.tgeStart + 100, block.timestamp + 1), 1e60);
         vm.prank(launchpad.owner());
         launchpad.setVestingStart(currentTokenId, _vestingStart);
-        vm.warp(_vestingStart);
     }
 
     function claimRemainders(uint256 tokenSeed) public useToken(tokenSeed) {
@@ -283,7 +278,6 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         public
         useActor(actorSeed)
         useToken(tokenSeed)
-        countCall("claimTokens")
     {
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
@@ -296,8 +290,11 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         vm.startPrank(currentActor);
         launchpad.claimTokens(currentTokenId);
         vm.stopPrank();
+    }
 
-        vm.warp(tokenSeed % 15);
+    function warp(uint256 secs) public {
+        secs = _bound(secs, 0, 30 days);
+        vm.warp(block.timestamp + secs);
     }
 
     function forEachActor(uint256 _id, function(address, uint256) external func) public {
@@ -319,16 +316,5 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
 
     function tokens() external view returns (address[] memory) {
         return _tokens.addrs;
-    }
-
-    function callSummary() external view {
-        console.log("Call summary:");
-        console.log("-------------------");
-        console.log("placeTokens", calls["placeTokens"]);
-        console.log("buyTokens", calls["buyTokens"]);
-        console.log("startFCFSSale", calls["startFCFSSale"]);
-        console.log("endSale", calls["endSale"]);
-        console.log("claimTokens", calls["claimTokens"]);
-        console.log("-------------------");
     }
 }

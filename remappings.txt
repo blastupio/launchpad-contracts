@@ -1,2 +1,3 @@
 @openzeppelin/=lib/openzeppelin/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
+@blastup-token/=lib/blastup-token/src/
