@@ -13,7 +13,6 @@ import {YieldStaking} from "../src/YieldStaking.sol";
 import {Launchpad, MessageHashUtils, ECDSA} from "../src/Launchpad.sol";
 import {ILaunchpad} from "../src/interfaces/ILaunchpad.sol";
 import {LaunchpadV2} from "../src/LaunchpadV2.sol";
-import {BLPStaking} from "../src/BLPStaking.sol";
 
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {OracleMock} from "../src/mocks/OracleMock.sol";
@@ -72,7 +71,7 @@ contract DeployScript is Script {
         console.log("Staking proxy admin:", vm.computeCreateAddress(address(staking), 1));
     }
 
-    function deployAndUpgradeV2(Launchpad launchpad, address blpStaking) public {
+    function deployAndUpgradeV2(Launchpad launchpad, address blpBalanceOracle) public {
         ProxyAdmin proxyAdmin =
             ProxyAdmin(address(uint160(uint256(vm.load(address(launchpad), ERC1967Utils.ADMIN_SLOT)))));
 
@@ -85,7 +84,7 @@ contract DeployScript is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(launchpadV2),
-            abi.encodeCall(LaunchpadV2.initializeV2, (blpStaking))
+            abi.encodeCall(LaunchpadV2.initializeV2, (blpBalanceOracle))
         );
     }
 }

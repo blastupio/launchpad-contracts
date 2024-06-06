@@ -2,25 +2,36 @@
 pragma solidity >=0.8.25;
 
 import {BaseLaunchpadTest, Launchpad, Types, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
-import {LaunchpadV2, BLPStaking} from "../../../../src/LaunchpadV2.sol";
+import {LaunchpadV2, BLPBalanceOracle} from "../../../../src/LaunchpadV2.sol";
+import {LockedBLPStaking, LockedBLP} from "@blastup-token/LockedBLPStaking.sol";
+import {BLPStaking} from "@blastup-token/BLPStaking.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/console.sol";
 
 contract LaunchpadV2Test is BaseLaunchpadTest {
+    BLPBalanceOracle blpBalanceOracle;
+    LockedBLP lockedBLP;
+    LockedBLPStaking lockedBLPStaking;
     BLPStaking blpStaking;
 
     function setUp() public override {
         super.setUp();
         vm.startPrank(admin);
-        blpStaking = new BLPStaking(address(blp), admin, address(points), admin);
+        blpStaking = new BLPStaking(admin, address(blp), address(blp), address(points), admin);
+        address lockedBLPStakingAddress = vm.computeCreateAddress(address(admin), vm.getNonce(admin) + 1);
+        lockedBLP =
+            new LockedBLP(lockedBLPStakingAddress, address(blp), address(points), admin, admin, 1000, 10, 2000, 10000);
+        lockedBLPStaking = new LockedBLPStaking(admin, address(lockedBLP), address(blp), address(points), admin);
+        blpBalanceOracle = new BLPBalanceOracle(admin, address(blpStaking), address(lockedBLPStaking));
+
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(staking))),
-            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking)))
+            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpBalanceOracle)))
         );
 
         vm.stopPrank();
-        assertEq(LaunchpadV2(address(launchpad)).blpStaking(), address(blpStaking));
+        assertEq(LaunchpadV2(address(launchpad)).blpBalanceOracle(), address(blpBalanceOracle));
     }
 
     modifier placeTokens() {
