@@ -192,6 +192,7 @@ contract Launchpad is OwnableUpgradeable, ILaunchpad {
         if (tokensAmount > availableVolume) {
             tokensAmount = availableVolume;
             uint256 newUsdbVolume = tokensAmount * price / (10 ** decimals);
+            require(newUsdbVolume > 0, "BlastUP: the amount for the purchase is too small");
 
             uint256 newVolume;
             if (paymentContract == address(WETH)) {

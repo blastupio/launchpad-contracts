@@ -274,11 +274,7 @@ contract LaunchpadHandler is CommonBase, StdCheats, StdUtils {
         launchpad.claimRemainders(currentTokenId);
     }
 
-    function claimTokens(uint256 actorSeed, uint256 tokenSeed)
-        public
-        useActor(actorSeed)
-        useToken(tokenSeed)
-    {
+    function claimTokens(uint256 actorSeed, uint256 tokenSeed) public useActor(actorSeed) useToken(tokenSeed) {
         Types.SaleStatus status = launchpad.getStatus(currentTokenId);
         vm.assume(status == Types.SaleStatus.POST_SALE);
 
