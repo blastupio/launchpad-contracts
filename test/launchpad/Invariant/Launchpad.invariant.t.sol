@@ -11,7 +11,7 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         super.setUp();
         handler = new LaunchpadHandler(launchpad, address(USDB), address(WETH), adminPrivateKey);
 
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](9);
         selectors[0] = LaunchpadHandler.buyTokens.selector;
         selectors[1] = LaunchpadHandler.claimTokens.selector;
         selectors[2] = LaunchpadHandler.claimRemainders.selector;
@@ -20,6 +20,7 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
         selectors[5] = LaunchpadHandler.setTgeStart.selector;
         selectors[6] = LaunchpadHandler.setSaleEnd.selector;
         selectors[7] = LaunchpadHandler.setFCFSSaleStart.selector;
+        selectors[8] = LaunchpadHandler.warp.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
@@ -75,8 +76,4 @@ contract LaunchpadInvariant is BaseLaunchpadTest {
 
         assertLe(placedToken.boughtAmount, placedToken.initialVolume);
     }
-
-    // function invariant_callSummary() public view {
-    //     handler.callSummary();
-    // }
 }

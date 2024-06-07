@@ -111,6 +111,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
 
         Types.User memory userInfo = launchpad.userInfo(id, _user);
         assertApproxEqAbs(userInfo.boughtAmount, userInfoBefore.boughtAmount + tokensAmount, tokensAmount / 100 + 1);
+        vm.assertEq(ERC20Mock(paymentContract).balanceOf(placedToken.addressForCollected), volume);
         vm.stopPrank();
     }
 
@@ -144,7 +145,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -197,7 +200,9 @@ contract BuyTokensTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -210,7 +215,7 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier register() {
-        uint256 amountOfTokens = 2000;
+        uint256 amountOfTokens = 2000 * (10 ** 18);
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         bytes memory signature = _getSignature(user, amountOfTokens);
 
@@ -224,8 +229,8 @@ contract BuyTokensTest is BaseLaunchpadTest {
     }
 
     modifier registerFuzz(uint256 amountOfTokens, uint256 amountOfTokens2) {
-        amountOfTokens = bound(amountOfTokens, 2000, 19999);
-        amountOfTokens2 = bound(amountOfTokens2, 20000, 1e30);
+        amountOfTokens = bound(amountOfTokens, 2000 * (10 ** 18), 19999 * (10 ** 18));
+        amountOfTokens2 = bound(amountOfTokens2, 20000 * (10 ** 18), 1e30);
 
         Types.UserTiers tier = _getTierByAmount(amountOfTokens);
         Types.UserTiers tier2 = _getTierByAmount(amountOfTokens2);
@@ -317,10 +322,56 @@ contract BuyTokensTest is BaseLaunchpadTest {
         vm.startPrank(user2);
         USDB.mint(user2, volume + 1);
         USDB.approve(address(launchpad), volume + 1);
-        vm.expectRevert("BlastUP: You have not enough allocation");
+        vm.expectRevert("BlastUP: Not enough volume or allocation");
         launchpad.buyTokens(id, address(USDB), volume, user2, bytes(""));
 
         vm.stopPrank();
+    }
+
+    function test_buyWithRegister() public placeTokens {
+        uint256 volume = 100e18;
+        uint256 blpBalance = 100_001 * (10 ** 18);
+
+        USDB.mint(user, volume + 1e18);
+        vm.prank(user);
+        USDB.approve(address(launchpad), volume + 1);
+        bytes memory signature = _getSignature(user, blpBalance);
+
+        vm.prank(user);
+        vm.expectRevert("BlastUP: invalid status");
+        launchpad.buyWithRegister(id, address(USDB), volume, signature, blpBalance);
+
+        vm.warp(launchpad.getPlacedToken(id).fcfsSaleStart);
+
+        vm.prank(user);
+        vm.expectRevert("BlastUP: invalid status");
+        launchpad.buyWithRegister(id, address(USDB), volume, signature, blpBalance);
+
+        vm.startPrank(admin);
+        launchpad.setOpenFCFS(id, true);
+        launchpad.setTierForFCFS(id, Types.UserTiers.GOLD);
+        vm.stopPrank();
+
+        vm.assertEq(launchpad.getPlacedToken(id).fcfsOpened, true);
+
+        vm.prank(user);
+        launchpad.buyWithRegister(id, address(USDB), volume, signature, blpBalance);
+
+        vm.assertGt(launchpad.userInfo(id, user).boughtAmount, 0);
+    }
+
+    function test_buyGtAllowedAllocation() public placeTokens register {
+        Types.PlacedToken memory placedToken = launchpad.getPlacedToken(id);
+        vm.warp(placedToken.publicSaleStart);
+        uint256 tokensAmount = launchpad.userAllowedAllocation(id, user);
+        uint256 volume = tokensAmount * placedToken.price / (10 ** placedToken.tokenDecimals) + 1e18;
+        USDB.mint(user, volume);
+        vm.startPrank(user);
+        USDB.approve(address(launchpad), volume + 1);
+        (uint256 realTokensAmount, uint256 newVolume) = launchpad.buyTokens(id, address(USDB), volume, user, bytes(""));
+        vm.assertEq(USDB.balanceOf(user), volume - newVolume);
+        vm.assertEq(tokensAmount, realTokensAmount);
+        vm.assertEq(USDB.balanceOf(placedToken.addressForCollected), newVolume);
     }
 
     function test_buyAndClaimFuzz(

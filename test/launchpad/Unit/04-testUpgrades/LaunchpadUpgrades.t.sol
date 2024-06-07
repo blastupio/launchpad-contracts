@@ -2,25 +2,36 @@
 pragma solidity >=0.8.25;
 
 import {BaseLaunchpadTest, Launchpad, Types, MessageHashUtils, ECDSA, ERC20Mock} from "../../BaseLaunchpad.t.sol";
-import {LaunchpadV2, ILaunchpadV2, BLPStaking} from "../../../../src/LaunchpadV2.sol";
+import {LaunchpadV2, BLPBalanceOracle} from "../../../../src/LaunchpadV2.sol";
+import {LockedBLPStaking, LockedBLP} from "@blastup-token/LockedBLPStaking.sol";
+import {BLPStaking} from "@blastup-token/BLPStaking.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/console.sol";
 
 contract LaunchpadV2Test is BaseLaunchpadTest {
+    BLPBalanceOracle blpBalanceOracle;
+    LockedBLP lockedBLP;
+    LockedBLPStaking lockedBLPStaking;
     BLPStaking blpStaking;
 
     function setUp() public override {
         super.setUp();
         vm.startPrank(admin);
-        blpStaking = new BLPStaking(address(blp), admin, address(points), admin);
+        blpStaking = new BLPStaking(admin, address(blp), address(blp), address(points), admin);
+        address lockedBLPStakingAddress = vm.computeCreateAddress(address(admin), vm.getNonce(admin) + 1);
+        lockedBLP =
+            new LockedBLP(lockedBLPStakingAddress, address(blp), address(points), admin, admin, 1000, 10, 2000, 10000);
+        lockedBLPStaking = new LockedBLPStaking(admin, address(lockedBLP), address(blp), address(points), admin);
+        blpBalanceOracle = new BLPBalanceOracle(admin, address(blpStaking), address(lockedBLPStaking));
+
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(launchpad)),
             address(new LaunchpadV2(address(WETH), address(USDB), address(oracle), address(staking))),
-            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpStaking)))
+            abi.encodeCall(LaunchpadV2.initializeV2, (address(blpBalanceOracle)))
         );
 
         vm.stopPrank();
-        assertEq(LaunchpadV2(address(launchpad)).blpStaking(), address(blpStaking));
+        assertEq(LaunchpadV2(address(launchpad)).blpBalanceOracle(), address(blpBalanceOracle));
     }
 
     modifier placeTokens() {
@@ -53,7 +64,9 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -66,7 +79,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
     }
 
     function test_registerV2() public placeTokens {
-        uint256 amount = 10_000; // BLP
+        uint256 amount = 10_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.GOLD;
         Types.UserTiers tierDiamond = Types.UserTiers.DIAMOND;
         uint256 lockTime = 100;
@@ -87,11 +100,7 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
         vm.stopPrank();
 
         vm.startPrank(user);
-        vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).register(id, tier, amount, bytes(""));
-        vm.expectRevert("Not implemented");
-        ILaunchpadV2(address(launchpad)).registerWithApprove(id, tier, amount, bytes(""), bytes(""));
-        ILaunchpadV2(address(launchpad)).registerV2(id, tier);
+        launchpad.register(id, tier, 0, bytes(""));
         Types.User memory userInfo = launchpad.userInfo(id, user);
 
         assertEq(uint8(userInfo.tier), uint8(tier));
@@ -101,6 +110,6 @@ contract LaunchpadV2Test is BaseLaunchpadTest {
 
         vm.prank(user2);
         vm.expectRevert("BlastUP: you do not have enough BLP tokens for that tier");
-        ILaunchpadV2(address(launchpad)).registerV2(id, tierDiamond);
+        launchpad.register(id, tierDiamond, 0, bytes(""));
     }
 }

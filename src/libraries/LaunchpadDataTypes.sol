@@ -76,5 +76,9 @@ library LaunchpadDataTypes {
         bool approved;
         // Address of the listed token.
         address token;
+        // Opens the opportunity for all BLP token holders with the minimum required balance to participate in the fcfs round.
+        bool fcfsOpened;
+        // Minimum tier for participation in FCFS which corresponds to the required user's balance.
+        UserTiers fcfsRequiredTier;
     }
 }
