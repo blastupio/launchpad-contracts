@@ -32,7 +32,7 @@ import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 /// to precision while also fairly and correctly distributing rewards through index growth.
 ///
 /// Primary purpose of this contract is to allow users to spend their accrued yield on Launchpad.
-/// Users should on;y be able to spend yield and not their direct balance, thus, for each
+/// Users should only be able to spend yield and not their direct balance, thus, for each
 /// user deposit we are tracking and locking amount which he deposited and only allow withdrawal
 /// of additional funds accrued as yield.
 contract YieldStaking is OwnableUpgradeable {
