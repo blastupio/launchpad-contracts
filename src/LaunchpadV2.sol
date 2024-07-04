@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.25;
 
-import {ILaunchpadV2, LaunchpadDataTypes as Types} from "./interfaces/ILaunchpadV2.sol";
-import {BLPStaking} from "./BLPStaking.sol";
+import {LaunchpadDataTypes as Types} from "./libraries/LaunchpadDataTypes.sol";
+import {BLPBalanceOracle} from "@blastup-token/BLPBalanceOracle.sol";
 import {Launchpad} from "./Launchpad.sol";
 import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 
@@ -14,7 +14,7 @@ import {IBlastPoints} from "./interfaces/IBlastPoints.sol";
 ///
 /// Previous registration methods are overriden and disabled.
 contract LaunchpadV2 is Launchpad {
-    address public blpStaking;
+    address public blpBalanceOracle;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -22,33 +22,24 @@ contract LaunchpadV2 is Launchpad {
         Launchpad(_weth, _usdb, _oracle, _yieldStaking)
     {}
 
-    function initializeV2(address _blpStaking) public reinitializer(2) {
-        blpStaking = _blpStaking;
+    function initializeV2(address _blpBalanceOracle) public reinitializer(2) {
+        blpBalanceOracle = _blpBalanceOracle;
     }
 
     /* ========== FUNCTIONS ========== */
 
-    function registerV2(uint256 id, Types.UserTiers tier) external {
+    function register(uint256 id, Types.UserTiers tier, uint256, bytes memory) public override {
         require(!placedTokens[id].approved, "BlastUP: you need to use register with approve function");
-        (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
+        uint256 amountOfTokens = BLPBalanceOracle(blpBalanceOracle).balanceOf(msg.sender);
         _register(amountOfTokens, id, tier);
     }
 
-    function registerV2WithApprove(uint256 id, Types.UserTiers tier, bytes memory signature) external {
-        (uint256 amountOfTokens,,,) = BLPStaking(blpStaking).users(msg.sender);
-        _validateApproveSignature(msg.sender, id, signature);
-        _register(amountOfTokens, id, tier);
-    }
-
-    function register(uint256, Types.UserTiers, uint256, bytes memory) external pure override {
-        revert("Not implemented");
-    }
-
-    function registerWithApprove(uint256, Types.UserTiers, uint256, bytes memory, bytes memory)
+    function registerWithApprove(uint256 id, Types.UserTiers tier, uint256, bytes memory, bytes memory approveSignature)
         external
-        pure
         override
     {
-        revert("Not implemented");
+        uint256 amountOfTokens = BLPBalanceOracle(blpBalanceOracle).balanceOf(msg.sender);
+        _validateApproveSignature(msg.sender, id, approveSignature);
+        _register(amountOfTokens, id, tier);
     }
 }

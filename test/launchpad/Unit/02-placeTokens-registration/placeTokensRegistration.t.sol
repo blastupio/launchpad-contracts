@@ -55,7 +55,9 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -97,7 +99,9 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: true,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -149,7 +153,9 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
             highTiersWeightsSum: 0,
             tokenDecimals: 18,
             approved: false,
-            token: address(testToken)
+            token: address(testToken),
+            fcfsOpened: false,
+            fcfsRequiredTier: Types.UserTiers.TITANIUM
         });
 
         vm.startPrank(admin);
@@ -197,8 +203,15 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_weightsSetters() public placeTokens {
-        uint256[6] memory weights = [uint256(10), 40, 50, 25, 30, 45];
-        uint256[6] memory amounts = [uint256(3_000), 7_000, 10_000, 30_000, 50_000, 100_000];
+        uint256[6] memory weights = [uint256(10), 25, 65, 10, 25, 65];
+        uint256[6] memory amounts = [
+            uint256(2_000 * (10 ** 18)),
+            5_000 * (10 ** 18),
+            10_000 * (10 ** 18),
+            20_000 * (10 ** 18),
+            50_000 * (10 ** 18),
+            100_000 * (10 ** 18)
+        ];
 
         vm.startPrank(user);
         vm.expectRevert();
@@ -222,7 +235,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_signerSetter() public placeTokens {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         uint256 id = 0;
 
@@ -246,7 +259,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_RevertRegistration_InvalidSignature() public placeTokens {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         uint256 id = 0;
 
@@ -268,7 +281,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_RevertRegistration_InvalidStatus() public placeTokens {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         uint256 id = 0;
 
@@ -284,7 +297,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_RevertRegistration_InvalidTier() public placeTokens {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.GOLD;
         uint256 id = 0;
 
@@ -297,7 +310,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_Register() public placeTokens {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         uint256 id = 0;
 
@@ -314,7 +327,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_RegisterWithApprove() public placeTokensWithApprove {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         uint256 id = 0;
 
@@ -334,7 +347,7 @@ contract PlaceTokensRegistrationTest is BaseLaunchpadTest {
     }
 
     function test_RevertRegistration_AlreadyRegisteredUser() public placeTokens {
-        uint256 amountOfTokens = 2000; // BLP
+        uint256 amountOfTokens = 2_000 * (10 ** 18); // BLP
         Types.UserTiers tier = Types.UserTiers.BRONZE;
         uint256 id = 0;
 

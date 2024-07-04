@@ -295,7 +295,10 @@ contract YieldStaking is OwnableUpgradeable {
             if (IERC20Rebasing(targetToken).allowance(address(this), address(launchpad)) < rewardAmount) {
                 IERC20Rebasing(targetToken).forceApprove(address(launchpad), type(uint256).max);
             }
-            launchpad.buyTokens(id, targetToken, rewardAmount, msg.sender, signature);
+            (uint256 restoredVolume,) = launchpad.buyTokens(id, targetToken, rewardAmount, msg.sender, signature);
+            if (rewardAmount != restoredVolume) {
+                _setBalance(info, user, _getUserBalance(user, info.lastIndex) + rewardAmount - restoredVolume);
+            }
         }
 
         emit RewardClaimed(targetToken, msg.sender, rewardToken, rewardAmount);

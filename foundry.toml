@@ -15,6 +15,7 @@ runs = 1000
 depth = 20
 runs = 1000
 fail_on_revert = true
+shrink_run_limit = 0
 
 [rpc_endpoints]
 blast_sepolia = "${BLAST_SEPOLIA_URL}"
