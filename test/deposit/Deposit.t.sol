@@ -122,6 +122,38 @@ contract DepositTest is Test {
         vm.stopPrank();
     }
 
+    function test_depositWithSwap_NotWhitelisted() public {
+        uint256 currentDeadline = block.timestamp + timeToDeadline;
+        uint256 nonce = 0;
+        bytes memory data = "Bytes";
+        uint256 projectId = 1;
+        uint256 amountIn = 10 * 1e18;
+        uint256 amountOut = 5 * 1e18;
+        SignatureData memory signatureData = SignatureData(
+            user, projectId, address(depositToken), amountOut, currentDeadline, deposit.depositReceiver(), nonce, data
+        );
+        bytes memory signature = _getSignature(signatureData);
+        string memory func = "swap(address,address,uint256,uint256)";
+
+        bytes memory swap = abi.encodeWithSignature(func, otherToken, depositToken, amountIn, amountOut);
+
+        Deposit.SwapData memory swapData = Deposit.SwapData(address(router), otherToken, amountIn, swap);
+        vm.startPrank(user);
+        depositToken.mint(address(router), amountOut);
+        otherToken.approve(address(deposit), type(uint256).max);
+        otherToken.mint(user, amountIn);
+        vm.expectRevert("BlastUP: router is no whitelisted");
+        deposit.depositWithSwap(signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, data);
+        vm.stopPrank();
+        vm.prank(admin);
+        deposit.addRouter(address(router));
+        vm.startPrank(user);
+        vm.expectEmit(address(deposit));
+        emit Deposit.Deposited(user, projectId, depositToken, amountOut, deposit.depositReceiver(), nonce, data);
+        deposit.depositWithSwap(signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, data);
+        vm.stopPrank();
+    }
+
     function test_deposit_fuzz(uint256 amount, uint256 projectId, uint256 nonce, bytes calldata data) public {
         vm.assume(amount > 0 && amount < 1e60);
         uint256 currentDeadline = block.timestamp + timeToDeadline;
@@ -145,6 +177,8 @@ contract DepositTest is Test {
         uint256 nonce,
         bytes calldata data
     ) public {
+        vm.prank(admin);
+        deposit.addRouter(address(router));
         vm.assume(amountOut > 0 && amountIn > 0);
 
         uint256 currentDeadline = block.timestamp + timeToDeadline;

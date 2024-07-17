@@ -28,7 +28,11 @@ contract Deposit is Ownable, Pausable {
     /// @notice Mapping to track deposited amounts for each project and user
     mapping(uint256 => mapping(address => uint256)) public depositedAmount;
 
-    mapping(uint256 => bool) nonces;
+    /// @notice Mapping to track used nonces
+    mapping(uint256 => bool) public nonces;
+
+    /// @notice Mapping to track whitelisted routers
+    mapping(address => bool) public routersWhitelist;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -99,12 +103,26 @@ contract Deposit is Ownable, Pausable {
         depositReceiver = _depositReceiver;
     }
 
+    /// @notice Adds a router to the whitelist
+    /// @param router The router address to add
+    function addRouter(address router) external onlyOwner {
+        routersWhitelist[router] = true;
+    }
+
+    /// @notice Removes a router from the whitelist
+    /// @param router The router address to remove
+    function removeRouter(address router) public {
+        routersWhitelist[router] = false;
+    }
+
     /// @notice Deposits tokens to the specified project
     /// @param signature The signature to verify
     /// @param projectId The ID of the project to deposit to
     /// @param depositToken The token being deposited
     /// @param amount The amount of tokens to deposit
     /// @param deadline The deadline for the deposit signature
+    /// @param nonce The unique nonce for the deposit
+    /// @param data Additional data for the deposit
     function deposit(
         bytes calldata signature,
         uint256 projectId,
@@ -125,6 +143,8 @@ contract Deposit is Ownable, Pausable {
     /// @param amount The amount of tokens to deposit
     /// @param deadline The deadline for the deposit signature
     /// @param swapData The data for the token swap
+    /// @param nonce The unique nonce for the deposit
+    /// @param data Additional data for the deposit
     function depositWithSwap(
         bytes calldata signature,
         uint256 projectId,
@@ -138,6 +158,7 @@ contract Deposit is Ownable, Pausable {
         _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
 
         // Swap tokenIn to depositToken
+        require(routersWhitelist[swapData.router], "BlastUP: router is no whitelisted");
         swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
         swapData.tokenIn.forceApprove(swapData.router, swapData.amountIn);
         (bool success,) = swapData.router.call(swapData.data);
@@ -177,6 +198,8 @@ contract Deposit is Ownable, Pausable {
     /// @param depositToken The token being deposited
     /// @param amount The amount of tokens deposited
     /// @param depositReceiver The address of the deposit receiver
+    /// @param nonce The unique nonce for the deposit
+    /// @param data Additional data for the deposit
     event Deposited(
         address indexed buyer,
         uint256 indexed indexedProjectId,
