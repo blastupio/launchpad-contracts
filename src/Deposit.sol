@@ -58,20 +58,20 @@ contract Deposit is Ownable, Pausable {
         uint256 amount,
         uint256 deadline,
         uint256 nonce,
-        bytes memory bytes_
+        bytes calldata data
     ) internal {
         require(!nonces[nonce], "BlastUP: this nonce is already used");
         require(block.timestamp <= deadline, "BlastUP: the deadline for this signature has passed");
 
         address signer_ = keccak256(
-            abi.encodePacked(msg.sender, projectId, depositToken, amount, deadline, depositReceiver, nonce, bytes_)
+            abi.encodePacked(msg.sender, projectId, depositToken, amount, deadline, depositReceiver, nonce, data)
         ).toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: signature verification failed");
 
         depositedAmount[projectId][msg.sender] += amount;
         nonces[nonce] = true;
 
-        emit Deposited(msg.sender, projectId, depositToken, amount, depositReceiver, nonce, bytes_);
+        emit Deposited(msg.sender, projectId, depositToken, amount, depositReceiver, nonce, data);
     }
 
     /* ========== FUNCTIONS ========== */
@@ -112,9 +112,9 @@ contract Deposit is Ownable, Pausable {
         uint256 amount,
         uint256 deadline,
         uint256 nonce,
-        bytes calldata bytes_
+        bytes calldata data
     ) external whenNotPaused {
-        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, bytes_);
+        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
         depositToken.safeTransferFrom(msg.sender, depositReceiver, amount);
     }
 
@@ -133,9 +133,9 @@ contract Deposit is Ownable, Pausable {
         uint256 deadline,
         SwapData calldata swapData,
         uint256 nonce,
-        bytes calldata bytes_
+        bytes calldata data
     ) external whenNotPaused {
-        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, bytes_);
+        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
 
         // Swap tokenIn to depositToken
         swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
@@ -184,7 +184,7 @@ contract Deposit is Ownable, Pausable {
         uint256 amount,
         address depositReceiver,
         uint256 nonce,
-        bytes indexed bytes_
+        bytes indexed data
     );
 
     /// @notice Emitted when the deposit receiver address is changed
