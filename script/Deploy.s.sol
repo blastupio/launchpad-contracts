@@ -26,6 +26,8 @@ import {ERC20RebasingMock} from "../src/mocks/ERC20RebasingMock.sol";
 import {ERC20RebasingTestnetMock} from "../src/mocks/ERC20RebasingTestnetMock.sol";
 import {WETHRebasingTestnetMock} from "../src/mocks/WETHRebasingTestnetMock.sol";
 
+import {Deposit} from "../src/Deposit.sol";
+
 contract DeployScript is Script {
     using SafeERC20 for IERC20;
 
@@ -65,7 +67,7 @@ contract DeployScript is Script {
             )
         );
 
-        console.log("Launchpad", address(launchpad));
+        console.log("Launchpad:", address(launchpad));
         console.log("Staking:", address(staking));
         console.log("Launchpad proxy admin:", vm.computeCreateAddress(address(launchpad), 1));
         console.log("Staking proxy admin:", vm.computeCreateAddress(address(staking), 1));
@@ -86,5 +88,12 @@ contract DeployScript is Script {
             address(launchpadV2),
             abi.encodeCall(LaunchpadV2.initializeV2, (blpBalanceOracle))
         );
+    }
+
+    function deployDeposit(address admin, address signer, address depositReceiver) public {
+        vm.startBroadcast();
+        Deposit deposit = new Deposit(admin, signer, depositReceiver);
+
+        console.log("Deposit:", address(deposit)); 
     }
 }

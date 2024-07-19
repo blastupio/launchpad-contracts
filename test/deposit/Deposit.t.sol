@@ -92,9 +92,27 @@ contract DepositTest is Test {
             user, projectId, address(depositToken), amount - 10, currentDeadline, deposit.depositReceiver(), nonce, data
         );
         bytes memory signature = _getSignature(signatureData);
-        vm.startPrank(user);
         depositToken.mint(user, 1e30);
+        vm.startPrank(user);
         depositToken.approve(address(deposit), type(uint256).max);
+        // check pause/unpause
+        vm.expectRevert();
+        deposit.pause();
+        vm.expectRevert();
+        deposit.unpause();
+        vm.stopPrank();
+        vm.prank(admin);
+        deposit.pause();
+
+        vm.startPrank(user);
+        vm.expectRevert();
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        vm.stopPrank();
+
+        vm.prank(admin);
+        deposit.unpause();
+
+        vm.startPrank(user);
         vm.expectRevert("BlastUP: the deadline for this signature has passed");
         deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
         vm.warp(block.timestamp - 60);
@@ -112,10 +130,22 @@ contract DepositTest is Test {
         SignatureData memory signatureData = SignatureData(
             user, projectId, address(depositToken), amount, currentDeadline, deposit.depositReceiver(), nonce, data
         );
+        // check setSigner
+        vm.prank(admin);
+        deposit.setSigner(user2);
         bytes memory signature = _getSignature(signatureData);
         vm.startPrank(user);
         depositToken.mint(user, 1e30);
         depositToken.approve(address(deposit), type(uint256).max);
+        vm.expectRevert("BlastUP: signature verification failed");
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        vm.stopPrank();
+
+        vm.prank(admin);
+        deposit.setSigner(signer);
+        signature = _getSignature(signatureData);
+        // check nonce
+        vm.startPrank(user);
         deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
         vm.expectRevert("BlastUP: this nonce is already used");
         deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);

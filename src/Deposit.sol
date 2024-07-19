@@ -111,7 +111,7 @@ contract Deposit is Ownable, Pausable {
 
     /// @notice Removes a router from the whitelist
     /// @param router The router address to remove
-    function removeRouter(address router) public {
+    function removeRouter(address router) public onlyOwner {
         routersWhitelist[router] = false;
     }
 
