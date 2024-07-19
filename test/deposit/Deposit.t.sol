@@ -69,8 +69,9 @@ contract DepositTest is Test {
                 signatureData.projectId,
                 signatureData.depositToken,
                 signatureData.amount,
+                address(deposit),
+                block.chainid,
                 signatureData.deadline,
-                signatureData.depositReceiver,
                 signatureData.nonce,
                 signatureData.data
             )
@@ -172,7 +173,7 @@ contract DepositTest is Test {
         depositToken.mint(address(router), amountOut);
         otherToken.approve(address(deposit), type(uint256).max);
         otherToken.mint(user, amountIn);
-        vm.expectRevert("BlastUP: router is no whitelisted");
+        vm.expectRevert("BlastUP: router is not whitelisted");
         deposit.depositWithSwap(signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, data);
         vm.stopPrank();
         vm.prank(admin);

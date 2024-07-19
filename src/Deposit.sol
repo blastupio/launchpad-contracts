@@ -68,7 +68,7 @@ contract Deposit is Ownable, Pausable {
         require(block.timestamp <= deadline, "BlastUP: the deadline for this signature has passed");
 
         address signer_ = keccak256(
-            abi.encodePacked(msg.sender, projectId, depositToken, amount, deadline, depositReceiver, nonce, data)
+            abi.encodePacked(msg.sender, projectId, depositToken, amount, address(this), block.chainid, deadline, nonce, data)
         ).toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: signature verification failed");
 
@@ -158,7 +158,7 @@ contract Deposit is Ownable, Pausable {
         _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
 
         // Swap tokenIn to depositToken
-        require(routersWhitelist[swapData.router], "BlastUP: router is no whitelisted");
+        require(routersWhitelist[swapData.router], "BlastUP: router is not whitelisted");
         swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
         swapData.tokenIn.forceApprove(swapData.router, swapData.amountIn);
         (bool success,) = swapData.router.call(swapData.data);
