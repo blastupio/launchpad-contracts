@@ -26,7 +26,7 @@ contract Deposit is Ownable, Pausable {
     address public depositReceiver;
 
     /// @notice Mapping to track deposited amounts for each project and user
-    mapping(uint256 => mapping(address => uint256)) public depositedAmount;
+    mapping(uint256 projectId => mapping(address depositToken => mapping(address => uint256))) public depositedAmount;
 
     /// @notice Mapping to track used nonces
     mapping(uint256 => bool) public nonces;
@@ -68,11 +68,13 @@ contract Deposit is Ownable, Pausable {
         require(block.timestamp <= deadline, "BlastUP: the deadline for this signature has passed");
 
         address signer_ = keccak256(
-            abi.encodePacked(msg.sender, projectId, depositToken, amount, address(this), block.chainid, deadline, nonce, data)
+            abi.encodePacked(
+                msg.sender, projectId, depositToken, amount, address(this), block.chainid, deadline, nonce, data
+            )
         ).toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: signature verification failed");
 
-        depositedAmount[projectId][msg.sender] += amount;
+        depositedAmount[projectId][address(depositToken)][msg.sender] += amount;
         nonces[nonce] = true;
 
         emit Deposited(msg.sender, projectId, depositToken, amount, depositReceiver, nonce, data);

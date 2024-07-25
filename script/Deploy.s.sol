@@ -94,6 +94,6 @@ contract DeployScript is Script {
         vm.startBroadcast();
         Deposit deposit = new Deposit(admin, signer, depositReceiver);
 
-        console.log("Deposit:", address(deposit)); 
+        console.log("Deposit:", address(deposit));
     }
 }
