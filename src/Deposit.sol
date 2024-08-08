@@ -44,6 +44,7 @@ contract Deposit is Ownable, Pausable {
     /// @param admin The address of the contract administrator
     /// @param _signer The address of the authorized signer
     /// @param _depositReceiver The address of the receiver for deposited funds
+    /// @param _wNative The address of the wrapped native currency (e.g. WETH)
     constructor(address admin, address _signer, address _depositReceiver, address _wNative) Ownable(admin) {
         signer = _signer;
         depositReceiver = _depositReceiver;
@@ -124,6 +125,13 @@ contract Deposit is Ownable, Pausable {
 
     /// @notice Swaps exact amount of tokenIn to tokenOut, expecting to receive at least `neededAmountOut`.
     /// After swap, `neededAmountOut` is transferred to `receiver` and leftover is sent back to `msg.sender`.
+    /// @param router The router address to use for the swap
+    /// @param data The data for the swap
+    /// @param receiver The address to receive the swapped tokens
+    /// @param tokenIn The token to swap from
+    /// @param amountIn The amount of tokenIn to swap
+    /// @param tokenOut The token to swap to
+    /// @param neededAmountOut The amount of tokenOut to receive
     function _swap(
         address router,
         bytes calldata data,
@@ -147,6 +155,8 @@ contract Deposit is Ownable, Pausable {
         tokenOut.safeTransfer(receiver, neededAmountOut);
     }
 
+    /// @notice Wraps native currency to wNative
+    /// @param amount The amount of native currency to wrap
     function _wrapNative(uint256 amount) internal {
         (bool success,) = payable(wNative).call{value: amount}("");
         require(success, "BlastUP: failed to wrap native");
