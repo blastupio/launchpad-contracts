@@ -6,6 +6,7 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
 
 contract Deposit is Ownable, Pausable {
     using ECDSA for bytes32;
@@ -34,15 +35,19 @@ contract Deposit is Ownable, Pausable {
     /// @notice Mapping to track whitelisted routers
     mapping(address => bool) public routersWhitelist;
 
+    /// @notice Address of the wrapped native currency (e.g. WETH)
+    address public immutable wNative;
+
     /* ========== CONSTRUCTOR ========== */
 
     /// @notice Initializes the contract with admin, signer, and deposit receiver addresses
     /// @param admin The address of the contract administrator
     /// @param _signer The address of the authorized signer
     /// @param _depositReceiver The address of the receiver for deposited funds
-    constructor(address admin, address _signer, address _depositReceiver) Ownable(admin) {
+    constructor(address admin, address _signer, address _depositReceiver, address _wNative) Ownable(admin) {
         signer = _signer;
         depositReceiver = _depositReceiver;
+        wNative = _wNative;
 
         emit DepositReceiverChanged(address(0), _depositReceiver);
     }
@@ -117,6 +122,36 @@ contract Deposit is Ownable, Pausable {
         routersWhitelist[router] = false;
     }
 
+    /// @notice Swaps exact amount of tokenIn to tokenOut, expecting to receive at least `neededAmountOut`.
+    /// After swap, `neededAmountOut` is transferred to `receiver` and leftover is sent back to `msg.sender`.
+    function _swap(
+        address router,
+        bytes calldata data,
+        address receiver,
+        IERC20 tokenIn,
+        uint256 amountIn,
+        IERC20 tokenOut,
+        uint256 neededAmountOut
+    ) internal {
+        // Swap tokenIn to depositToken
+        require(routersWhitelist[router], "BlastUP: router is not whitelisted");
+        tokenIn.forceApprove(router, amountIn);
+        (bool success,) = router.call(data);
+        require(success, "BlastUP: swap failed");
+
+        uint256 amountOut = tokenOut.balanceOf(address(this));
+        require(amountOut >= neededAmountOut, "BlastUP: amount out lt amount");
+
+        // Send the remaining amount back to the sender
+        if (amountOut > neededAmountOut) tokenOut.safeTransfer(msg.sender, amountOut - neededAmountOut);
+        tokenOut.safeTransfer(receiver, neededAmountOut);
+    }
+
+    function _wrapNative(uint256 amount) internal {
+        (bool success,) = payable(wNative).call{value: amount}("");
+        require(success, "BlastUP: failed to wrap native");
+    }
+
     /// @notice Deposits tokens to the specified project
     /// @param signature The signature to verify
     /// @param projectId The ID of the project to deposit to
@@ -158,22 +193,54 @@ contract Deposit is Ownable, Pausable {
         bytes calldata data
     ) external whenNotPaused {
         _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
-
-        // Swap tokenIn to depositToken
-        require(routersWhitelist[swapData.router], "BlastUP: router is not whitelisted");
         swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
-        swapData.tokenIn.forceApprove(swapData.router, swapData.amountIn);
-        (bool success,) = swapData.router.call(swapData.data);
-        require(success, "BlastUP: swap failed");
+        _swap(
+            swapData.router, swapData.data, depositReceiver, swapData.tokenIn, swapData.amountIn, depositToken, amount
+        );
+    }
 
-        uint256 amountOut = depositToken.balanceOf(address(this));
-        require(amountOut >= amount, "BlastUP: amount out lt amount");
+    /// @notice Deposits native currency to the specified project
+    /// @param signature The signature to verify
+    /// @param projectId The ID of the project to deposit to
+    /// @param deadline The deadline for the deposit signature
+    /// @param nonce The unique nonce for the deposit
+    /// @param data Additional data for the deposit
+    function depositNative(
+        bytes calldata signature,
+        uint256 projectId,
+        uint256 deadline,
+        uint256 nonce,
+        bytes calldata data
+    ) external payable whenNotPaused {
+        _beforeDeposit(signature, projectId, IERC20(wNative), msg.value, deadline, nonce, data);
+        _wrapNative(msg.value);
+        IERC20(wNative).safeTransfer(depositReceiver, msg.value);
+    }
 
-        // Send tokens to the depositReceiver
-        depositToken.safeTransfer(depositReceiver, amount);
-
-        // Send the remaining amount back to the sender
-        if (amountOut > amount) depositToken.safeTransfer(msg.sender, amountOut - amount);
+    /// @notice Deposits native currency to the specified project
+    /// @param signature The signature to verify
+    /// @param projectId The ID of the project to deposit to
+    /// @param depositToken The token being deposited
+    /// @param amount The amount of tokens to deposit which is expected to be received after swap.
+    /// @param deadline The deadline for the deposit signature
+    /// @param router Router to use for the swap
+    /// @param routerData Data to use for the swap
+    /// @param nonce The unique nonce for the deposit
+    /// @param data Additional data for the deposit
+    function depositNativeWithSwap(
+        bytes calldata signature,
+        uint256 projectId,
+        IERC20 depositToken,
+        uint256 amount,
+        uint256 deadline,
+        address router,
+        bytes calldata routerData,
+        uint256 nonce,
+        bytes calldata data
+    ) external payable whenNotPaused {
+        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
+        _wrapNative(msg.value);
+        _swap(router, routerData, depositReceiver, IERC20(wNative), msg.value, depositToken, amount);
     }
 
     /// @notice Withdraws funds accidentally sent to the contract

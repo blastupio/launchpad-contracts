@@ -10,6 +10,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {RouterMock} from "../../src/mocks/RouterMock.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract WETHMock is ERC20("WETH", "WETH") {
+    receive() external payable {
+        _mint(msg.sender, msg.value);
+    }
+}
 
 contract DepositTest is Test {
     using ECDSA for bytes32;
@@ -41,6 +48,7 @@ contract DepositTest is Test {
     Deposit deposit;
     uint256 timeToDeadline;
     RouterMock router;
+    address weth = address(new WETHMock());
 
     function setUp() public virtual {
         adminPrivateKey = 0xa11ce;
@@ -57,7 +65,7 @@ contract DepositTest is Test {
         router = new RouterMock();
         depositToken = new ERC20Mock("Token", "TKN", 18);
         otherToken = new ERC20Mock("Other Token", "OTKN", 18);
-        deposit = new Deposit(admin, signer, receiver);
+        deposit = new Deposit(admin, signer, receiver, address(weth));
         vm.stopPrank();
     }
 
