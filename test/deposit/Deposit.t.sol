@@ -10,6 +10,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {RouterMock} from "../../src/mocks/RouterMock.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract WETHMock is ERC20("WETH", "WETH") {
+    receive() external payable {
+        _mint(msg.sender, msg.value);
+    }
+}
 
 contract DepositTest is Test {
     using ECDSA for bytes32;
@@ -41,6 +48,7 @@ contract DepositTest is Test {
     Deposit deposit;
     uint256 timeToDeadline;
     RouterMock router;
+    address weth = address(new WETHMock());
 
     function setUp() public virtual {
         adminPrivateKey = 0xa11ce;
@@ -57,7 +65,7 @@ contract DepositTest is Test {
         router = new RouterMock();
         depositToken = new ERC20Mock("Token", "TKN", 18);
         otherToken = new ERC20Mock("Other Token", "OTKN", 18);
-        deposit = new Deposit(admin, signer, receiver);
+        deposit = new Deposit(admin, signer, receiver, address(weth));
         vm.stopPrank();
     }
 
@@ -198,6 +206,51 @@ contract DepositTest is Test {
         vm.expectEmit(address(deposit));
         emit Deposit.Deposited(user, projectId, depositToken, amount, deposit.depositReceiver(), nonce, data);
         deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        vm.stopPrank();
+    }
+
+    function test_depositNative_fuzz(uint256 amount, uint256 projectId, uint256 nonce, bytes calldata data) public {
+        vm.assume(amount > 0 && amount < 1e60);
+        uint256 currentDeadline = block.timestamp + timeToDeadline;
+        SignatureData memory signatureData =
+            SignatureData(user, projectId, weth, amount, currentDeadline, deposit.depositReceiver(), nonce, data);
+        bytes memory signature = _getSignature(signatureData);
+        vm.startPrank(user);
+        vm.deal(user, amount);
+        vm.expectEmit(address(deposit));
+        emit Deposit.Deposited(user, projectId, IERC20(weth), amount, deposit.depositReceiver(), nonce, data);
+        deposit.depositNative{value: amount}(signature, projectId, currentDeadline, nonce, data);
+        vm.stopPrank();
+    }
+
+    function test_depositNativeWithSwap_fuzz(
+        uint256 amountOut,
+        uint256 amountIn,
+        uint256 projectId,
+        uint256 nonce,
+        bytes calldata data
+    ) public {
+        vm.prank(admin);
+        deposit.addRouter(address(router));
+        vm.assume(amountOut > 0 && amountIn > 0);
+
+        uint256 currentDeadline = block.timestamp + timeToDeadline;
+        SignatureData memory signatureData = SignatureData(
+            user, projectId, address(depositToken), amountOut, currentDeadline, deposit.depositReceiver(), nonce, data
+        );
+        bytes memory signature = _getSignature(signatureData);
+        string memory func = "swap(address,address,uint256,uint256)";
+
+        bytes memory swap = abi.encodeWithSignature(func, weth, depositToken, amountIn, amountOut);
+
+        vm.startPrank(user);
+        depositToken.mint(address(router), amountOut);
+        vm.deal(user, amountIn);
+        vm.expectEmit(address(deposit));
+        emit Deposit.Deposited(user, projectId, depositToken, amountOut, deposit.depositReceiver(), nonce, data);
+        deposit.depositNativeWithSwap{value: amountIn}(
+            signature, projectId, depositToken, amountOut, currentDeadline, address(router), swap, nonce, data
+        );
         vm.stopPrank();
     }
 

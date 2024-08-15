@@ -90,10 +90,10 @@ contract DeployScript is Script {
         );
     }
 
-    function deployDeposit(address admin, address signer, address depositReceiver) public {
+    function deployDeposit(address admin, address signer, address depositReceiver, address wNative) public {
         vm.startBroadcast();
-        Deposit deposit = new Deposit(admin, signer, depositReceiver);
+        Deposit deposit = new Deposit(admin, signer, depositReceiver, wNative);
 
-        console.log("Deposit:", address(deposit)); 
+        console.log("Deposit:", address(deposit));
     }
 }
