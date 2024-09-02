@@ -19,8 +19,10 @@ shrink_run_limit = 0
 
 [rpc_endpoints]
 blast_sepolia = "${BLAST_SEPOLIA_URL}"
+blast = "${BLAST_MAINNET_URL}"
 
 [etherscan]
+blast = { key = "${BLASTSCAN_API_KEY}", url = "https://api.blastscan.io/api/" }
 blast_sepolia = { key = "${BLASTSCAN_API_KEY}", url = "https://api-sepolia.blastscan.io/api", chain = 168587773 }
 sepolia = { key = "${ETHERSCAN_KEY}" }
 optimism_sepolia = { key = "${OPTIMISMSCAN_KEY}" }
