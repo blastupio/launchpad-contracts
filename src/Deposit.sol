@@ -68,6 +68,7 @@ contract Deposit is Ownable, Pausable {
         uint256 amount,
         uint256 deadline,
         uint256 nonce,
+        address to,
         bytes calldata data
     ) internal {
         require(!nonces[nonce], "BlastUP: this nonce is already used");
@@ -80,10 +81,10 @@ contract Deposit is Ownable, Pausable {
         ).toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: signature verification failed");
 
-        depositedAmount[projectId][address(depositToken)][msg.sender] += amount;
+        depositedAmount[projectId][address(depositToken)][to] += amount;
         nonces[nonce] = true;
 
-        emit Deposited(msg.sender, projectId, depositToken, amount, depositReceiver, nonce, data);
+        emit Deposited(to, projectId, depositToken, amount, depositReceiver, nonce, data);
     }
 
     /* ========== FUNCTIONS ========== */
@@ -177,9 +178,10 @@ contract Deposit is Ownable, Pausable {
         uint256 amount,
         uint256 deadline,
         uint256 nonce,
+        address to,
         bytes calldata data
     ) external whenNotPaused {
-        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
+        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, to, data);
         depositToken.safeTransferFrom(msg.sender, depositReceiver, amount);
     }
 
@@ -200,9 +202,10 @@ contract Deposit is Ownable, Pausable {
         uint256 deadline,
         SwapData calldata swapData,
         uint256 nonce,
+        address to,
         bytes calldata data
     ) external whenNotPaused {
-        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
+        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, to, data);
         swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
         _swap(
             swapData.router, swapData.data, depositReceiver, swapData.tokenIn, swapData.amountIn, depositToken, amount
@@ -220,9 +223,10 @@ contract Deposit is Ownable, Pausable {
         uint256 projectId,
         uint256 deadline,
         uint256 nonce,
+        address to,
         bytes calldata data
     ) external payable whenNotPaused {
-        _beforeDeposit(signature, projectId, IERC20(wNative), msg.value, deadline, nonce, data);
+        _beforeDeposit(signature, projectId, IERC20(wNative), msg.value, deadline, nonce, to, data);
         _wrapNative(msg.value);
         IERC20(wNative).safeTransfer(depositReceiver, msg.value);
     }
@@ -246,9 +250,10 @@ contract Deposit is Ownable, Pausable {
         address router,
         bytes calldata routerData,
         uint256 nonce,
+        address to,
         bytes calldata data
     ) external payable whenNotPaused {
-        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, data);
+        _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, to, data);
         _wrapNative(msg.value);
         _swap(router, routerData, depositReceiver, IERC20(wNative), msg.value, depositToken, amount);
     }

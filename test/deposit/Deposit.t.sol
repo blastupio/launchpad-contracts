@@ -115,7 +115,7 @@ contract DepositTest is Test {
 
         vm.startPrank(user);
         vm.expectRevert();
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.stopPrank();
 
         vm.prank(admin);
@@ -123,10 +123,10 @@ contract DepositTest is Test {
 
         vm.startPrank(user);
         vm.expectRevert("BlastUP: the deadline for this signature has passed");
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.warp(block.timestamp - 60);
         vm.expectRevert();
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.stopPrank();
     }
 
@@ -147,7 +147,7 @@ contract DepositTest is Test {
         depositToken.mint(user, 1e30);
         depositToken.approve(address(deposit), type(uint256).max);
         vm.expectRevert("BlastUP: signature verification failed");
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.stopPrank();
 
         vm.prank(admin);
@@ -155,9 +155,9 @@ contract DepositTest is Test {
         signature = _getSignature(signatureData);
         // check nonce
         vm.startPrank(user);
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.expectRevert("BlastUP: this nonce is already used");
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.stopPrank();
     }
 
@@ -182,14 +182,18 @@ contract DepositTest is Test {
         otherToken.approve(address(deposit), type(uint256).max);
         otherToken.mint(user, amountIn);
         vm.expectRevert("BlastUP: router is not whitelisted");
-        deposit.depositWithSwap(signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, data);
+        deposit.depositWithSwap(
+            signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, user, data
+        );
         vm.stopPrank();
         vm.prank(admin);
         deposit.addRouter(address(router));
         vm.startPrank(user);
         vm.expectEmit(address(deposit));
         emit Deposit.Deposited(user, projectId, depositToken, amountOut, deposit.depositReceiver(), nonce, data);
-        deposit.depositWithSwap(signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, data);
+        deposit.depositWithSwap(
+            signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, user, data
+        );
         vm.stopPrank();
     }
 
@@ -205,7 +209,7 @@ contract DepositTest is Test {
         depositToken.approve(address(deposit), type(uint256).max);
         vm.expectEmit(address(deposit));
         emit Deposit.Deposited(user, projectId, depositToken, amount, deposit.depositReceiver(), nonce, data);
-        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, data);
+        deposit.deposit(signature, projectId, depositToken, amount, currentDeadline, nonce, user, data);
         vm.stopPrank();
     }
 
@@ -219,7 +223,7 @@ contract DepositTest is Test {
         vm.deal(user, amount);
         vm.expectEmit(address(deposit));
         emit Deposit.Deposited(user, projectId, IERC20(weth), amount, deposit.depositReceiver(), nonce, data);
-        deposit.depositNative{value: amount}(signature, projectId, currentDeadline, nonce, data);
+        deposit.depositNative{value: amount}(signature, projectId, currentDeadline, nonce, user, data);
         vm.stopPrank();
     }
 
@@ -249,7 +253,7 @@ contract DepositTest is Test {
         vm.expectEmit(address(deposit));
         emit Deposit.Deposited(user, projectId, depositToken, amountOut, deposit.depositReceiver(), nonce, data);
         deposit.depositNativeWithSwap{value: amountIn}(
-            signature, projectId, depositToken, amountOut, currentDeadline, address(router), swap, nonce, data
+            signature, projectId, depositToken, amountOut, currentDeadline, address(router), swap, nonce, user, data
         );
         vm.stopPrank();
     }
@@ -281,7 +285,9 @@ contract DepositTest is Test {
         otherToken.mint(user, amountIn);
         vm.expectEmit(address(deposit));
         emit Deposit.Deposited(user, projectId, depositToken, amountOut, deposit.depositReceiver(), nonce, data);
-        deposit.depositWithSwap(signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, data);
+        deposit.depositWithSwap(
+            signature, projectId, depositToken, amountOut, currentDeadline, swapData, nonce, user, data
+        );
         vm.stopPrank();
     }
 
