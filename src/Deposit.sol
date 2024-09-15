@@ -27,7 +27,8 @@ contract Deposit is Ownable, Pausable {
     address public depositReceiver;
 
     /// @notice Mapping to track deposited amounts for each project and user
-    mapping(uint256 projectId => mapping(address depositToken => mapping(address => uint256))) public depositedAmount;
+    mapping(uint256 projectId => mapping(address depositToken => mapping(address => uint256)))
+        public depositedAmount;
 
     /// @notice Mapping to track used nonces
     mapping(uint256 => bool) public nonces;
@@ -45,7 +46,12 @@ contract Deposit is Ownable, Pausable {
     /// @param _signer The address of the authorized signer
     /// @param _depositReceiver The address of the receiver for deposited funds
     /// @param _wNative The address of the wrapped native currency (e.g. WETH)
-    constructor(address admin, address _signer, address _depositReceiver, address _wNative) Ownable(admin) {
+    constructor(
+        address admin,
+        address _signer,
+        address _depositReceiver,
+        address _wNative
+    ) Ownable(admin) {
         signer = _signer;
         depositReceiver = _depositReceiver;
         wNative = _wNative;
@@ -72,11 +78,22 @@ contract Deposit is Ownable, Pausable {
         bytes calldata data
     ) internal {
         require(!nonces[nonce], "BlastUP: this nonce is already used");
-        require(block.timestamp <= deadline, "BlastUP: the deadline for this signature has passed");
+        require(
+            block.timestamp <= deadline,
+            "BlastUP: the deadline for this signature has passed"
+        );
 
         address signer_ = keccak256(
             abi.encodePacked(
-                msg.sender, projectId, depositToken, amount, address(this), block.chainid, deadline, nonce, data
+                msg.sender,
+                projectId,
+                depositToken,
+                amount,
+                address(this),
+                block.chainid,
+                deadline,
+                nonce,
+                data
             )
         ).toEthSignedMessageHash().recover(signature);
         require(signer_ == signer, "BlastUP: signature verification failed");
@@ -145,21 +162,22 @@ contract Deposit is Ownable, Pausable {
         // Swap tokenIn to depositToken
         require(routersWhitelist[router], "BlastUP: router is not whitelisted");
         tokenIn.forceApprove(router, amountIn);
-        (bool success,) = router.call(data);
+        (bool success, ) = router.call(data);
         require(success, "BlastUP: swap failed");
 
         uint256 amountOut = tokenOut.balanceOf(address(this));
         require(amountOut >= neededAmountOut, "BlastUP: amount out lt amount");
 
         // Send the remaining amount back to the sender
-        if (amountOut > neededAmountOut) tokenOut.safeTransfer(msg.sender, amountOut - neededAmountOut);
+        if (amountOut > neededAmountOut)
+            tokenOut.safeTransfer(msg.sender, amountOut - neededAmountOut);
         tokenOut.safeTransfer(receiver, neededAmountOut);
     }
 
     /// @notice Wraps native currency to wNative
     /// @param amount The amount of native currency to wrap
     function _wrapNative(uint256 amount) internal {
-        (bool success,) = payable(wNative).call{value: amount}("");
+        (bool success, ) = payable(wNative).call{value: amount}("");
         require(success, "BlastUP: failed to wrap native");
     }
 
@@ -208,7 +226,13 @@ contract Deposit is Ownable, Pausable {
         _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, to, data);
         swapData.tokenIn.safeTransferFrom(msg.sender, address(this), swapData.amountIn);
         _swap(
-            swapData.router, swapData.data, depositReceiver, swapData.tokenIn, swapData.amountIn, depositToken, amount
+            swapData.router,
+            swapData.data,
+            depositReceiver,
+            swapData.tokenIn,
+            swapData.amountIn,
+            depositToken,
+            amount
         );
     }
 
@@ -255,17 +279,30 @@ contract Deposit is Ownable, Pausable {
     ) external payable whenNotPaused {
         _beforeDeposit(signature, projectId, depositToken, amount, deadline, nonce, to, data);
         _wrapNative(msg.value);
-        _swap(router, routerData, depositReceiver, IERC20(wNative), msg.value, depositToken, amount);
+        _swap(
+            router,
+            routerData,
+            depositReceiver,
+            IERC20(wNative),
+            msg.value,
+            depositToken,
+            amount
+        );
     }
 
     /// @notice Withdraws funds accidentally sent to the contract
     /// @param token The address of the token to withdraw
     function withdrawFunds(address token) external onlyOwner {
         if (token == address(0)) {
-            (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
+            (bool success, ) = payable(msg.sender).call{
+                value: address(this).balance
+            }("");
             require(success, "BlastUP: failed to send ETH");
         } else {
-            IERC20(token).safeTransfer(msg.sender, IERC20(token).balanceOf(address(this)));
+            IERC20(token).safeTransfer(
+                msg.sender,
+                IERC20(token).balanceOf(address(this))
+            );
         }
     }
 
@@ -291,11 +328,14 @@ contract Deposit is Ownable, Pausable {
         uint256 amount,
         address depositReceiver,
         uint256 nonce,
-        bytes indexed data
+        bytes data
     );
 
     /// @notice Emitted when the deposit receiver address is changed
     /// @param oldDepositReceiver The old deposit receiver address
     /// @param newDepositReceiver The new deposit receiver address
-    event DepositReceiverChanged(address oldDepositReceiver, address newDepositReceiver);
+    event DepositReceiverChanged(
+        address oldDepositReceiver,
+        address newDepositReceiver
+    );
 }
